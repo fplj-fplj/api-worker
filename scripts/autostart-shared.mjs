@@ -195,11 +195,20 @@ export const classifyLinuxAutostartStatus = ({
 		};
 	}
 
-	if (running) {
+	if (systemdRunning) {
 		return {
 			level: "success",
 			summary: "已开启，当前运行中",
-			running,
+			running: true,
+			needsMigration: false,
+		};
+	}
+
+	if (backgroundRunning) {
+		return {
+			level: "warn",
+			summary: "已开启，systemd 未运行，但检测到手动后台实例",
+			running: true,
 			needsMigration: false,
 		};
 	}

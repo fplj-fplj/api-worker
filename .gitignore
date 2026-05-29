@@ -8,6 +8,10 @@
 **/.wrangler
 **/target
 **/tests
+!tests/
+/tests/*
+!tests/scripts/
+!tests/scripts/**
 playwright-report
 test-results
 .dev

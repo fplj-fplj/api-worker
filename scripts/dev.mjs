@@ -15,6 +15,14 @@ import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 import { buildBackgroundStateFromArgs } from "./autostart-shared.mjs";
+import {
+	buildDevHealthTargets,
+	classifyBackgroundDevState,
+	resolveChildExitSupervisorAction,
+	shouldRestartUnhealthyService,
+	summarizeHealthChecks,
+	waitForChildExit,
+} from "./dev-shared.mjs";
 
 const BUN_CMD = (() => {
 	if (process.env.BUN_BIN && existsSync(process.env.BUN_BIN)) {
@@ -146,7 +154,30 @@ const attemptInspectorPort = parsePortFromEnv(
 );
 
 const children = new Map();
+const commandDefinitions = new Map();
+const healthFailures = new Map();
+const healthRestartTimes = new Map();
+const restartingCommands = new Set();
 let shuttingDown = false;
+
+const healthCheckIntervalMs = Number(
+	process.env.DEV_HEALTH_CHECK_INTERVAL_MS ?? 10_000,
+);
+const healthCheckTimeoutMs = Number(
+	process.env.DEV_HEALTH_CHECK_TIMEOUT_MS ?? 3_000,
+);
+const healthRestartStopTimeoutMs = Number(
+	process.env.DEV_HEALTH_RESTART_STOP_TIMEOUT_MS ?? 5_000,
+);
+const healthStartupGraceMs = Number(
+	process.env.DEV_HEALTH_STARTUP_GRACE_MS ?? 30_000,
+);
+const healthRestartThreshold = Number(
+	process.env.DEV_HEALTH_RESTART_THRESHOLD ?? 3,
+);
+const healthRestartCooldownMs = Number(
+	process.env.DEV_HEALTH_RESTART_COOLDOWN_MS ?? 60_000,
+);
 
 const printSync = (message) => {
 	writeSync(1, `${message}\n`);
@@ -401,6 +432,17 @@ const writeState = (state) => {
 	writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 };
 
+const updateStatePatch = (patch) => {
+	const state = readState();
+	if (!state || state.pid !== process.pid) {
+		return;
+	}
+	writeState({
+		...state,
+		...patch,
+	});
+};
+
 const killTree = async (pid) =>
 	new Promise((resolve, reject) => {
 		if (process.platform === "win32") {
@@ -429,6 +471,32 @@ const killTree = async (pid) =>
 			}
 		}
 	});
+
+const checkHealthTarget = async (target) => {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), healthCheckTimeoutMs);
+	try {
+		const response = await fetch(target.url, { signal: controller.signal });
+		return {
+			...target,
+			ok: response.ok,
+			status: response.status,
+			error: response.ok ? null : `HTTP ${response.status}`,
+		};
+	} catch (error) {
+		return {
+			...target,
+			ok: false,
+			status: null,
+			error: error?.message ?? String(error),
+		};
+	} finally {
+		clearTimeout(timeout);
+	}
+};
+
+const checkHealthTargets = async (targets) =>
+	Promise.all(targets.map((target) => checkHealthTarget(target)));
 
 const shutdown = (code = 0) => {
 	if (shuttingDown) {
@@ -756,58 +824,181 @@ const buildCommands = (workerConfigPath) => {
 	return commands;
 };
 
-const startLongRunningCommands = (commands) => {
-	for (const command of commands) {
-		const spawnStdio = createSpawnStdio();
-		const child = spawn(command.cmd, command.args, {
-			stdio: spawnStdio.stdio,
-			cwd: command.cwd ?? process.cwd(),
-			windowsHide: shouldHideBackgroundWindows,
-		});
-		spawnStdio.close();
-		children.set(command.name, child);
-		child.on("error", (error) => {
-			if (error.code === "ENOENT") {
-				console.error(
-					"❌ 未找到 Bun，请确认已安装并配置 PATH，或设置 BUN_BIN 指向 bun 可执行文件。",
-				);
-				shutdown(1);
-				return;
-			}
-			console.error(`❌ 启动 ${command.name} 失败: ${error.message}`);
-			shutdown(1);
-		});
-		child.on("exit", (code) => {
-			if (shuttingDown) {
-				return;
-			}
-			if (code && code !== 0) {
-				shutdown(code);
-				return;
-			}
-			const allExited = Array.from(children.values()).every(
-				(item) => item.exitCode !== null,
+const spawnLongRunningCommand = (command) => {
+	const spawnStdio = createSpawnStdio();
+	const child = spawn(command.cmd, command.args, {
+		stdio: spawnStdio.stdio,
+		cwd: command.cwd ?? process.cwd(),
+		windowsHide: shouldHideBackgroundWindows,
+	});
+	spawnStdio.close();
+	children.set(command.name, child);
+	child.on("error", (error) => {
+		if (error.code === "ENOENT") {
+			console.error(
+				"❌ 未找到 Bun，请确认已安装并配置 PATH，或设置 BUN_BIN 指向 bun 可执行文件。",
 			);
-			if (allExited) {
-				shutdown(0);
-			}
+			shutdown(1);
+			return;
+		}
+		console.error(`❌ 启动 ${command.name} 失败: ${error.message}`);
+		shutdown(1);
+	});
+	child.on("exit", (code) => {
+		const allChildrenExited = Array.from(children.values()).every(
+			(item) => item.exitCode !== null,
+		);
+		const action = resolveChildExitSupervisorAction({
+			shuttingDown,
+			restarting: restartingCommands.has(command.name),
+			isCurrentChild: children.get(command.name) === child,
+			code,
+			allChildrenExited,
 		});
+		if (action.type === "ignore") {
+			return;
+		}
+		shutdown(action.code);
+	});
+	return child;
+};
+
+const restartLongRunningCommand = async (commandName, reason) => {
+	const command = commandDefinitions.get(commandName);
+	if (!command) {
+		return;
+	}
+	const child = children.get(commandName);
+	console.error(`⚠️ ${commandName} 健康检查失败，正在重启：${reason}`);
+	if (child && child.exitCode === null && !child.killed) {
+		restartingCommands.add(commandName);
+		try {
+			child.kill("SIGINT");
+			await waitForChildExit(child, healthRestartStopTimeoutMs);
+		} finally {
+			restartingCommands.delete(commandName);
+		}
+	}
+	spawnLongRunningCommand(command);
+	const now = Date.now();
+	healthFailures.set(commandName, 0);
+	healthRestartTimes.set(commandName, now);
+	updateStatePatch({
+		lastHealthRestartAt: new Date(now).toISOString(),
+		lastHealthRestartService: commandName,
+		lastHealthRestartReason: reason,
+	});
+};
+
+const runHealthWatchdog = async (targets, startedAt) => {
+	const checks = await checkHealthTargets(targets);
+	const summary = summarizeHealthChecks(checks);
+	updateStatePatch({
+		health: {
+			healthy: summary.healthy,
+			checkedAt: new Date().toISOString(),
+			checks,
+		},
+	});
+	for (const check of checks) {
+		if (check.ok) {
+			healthFailures.set(check.commandName, 0);
+			continue;
+		}
+		const failures = (healthFailures.get(check.commandName) ?? 0) + 1;
+		healthFailures.set(check.commandName, failures);
+		const now = Date.now();
+		if (
+			shouldRestartUnhealthyService({
+				now,
+				startedAt,
+				startupGraceMs: healthStartupGraceMs,
+				restartThreshold: healthRestartThreshold,
+				restartCooldownMs: healthRestartCooldownMs,
+				consecutiveFailures: failures,
+				lastRestartAt: healthRestartTimes.get(check.commandName) ?? null,
+			})
+		) {
+			await restartLongRunningCommand(
+				check.commandName,
+				`${check.url} ${check.error ?? "unhealthy"}`,
+			);
+		}
 	}
 };
 
-const printStatus = () => {
+const startHealthWatchdog = (targets) => {
+	if (!daemonMode || targets.length === 0) {
+		return;
+	}
+	const startedAt = Date.now();
+	const tick = () => {
+		runHealthWatchdog(targets, startedAt).catch((error) => {
+			console.error(`⚠️ 健康检查执行失败: ${error.message}`);
+		});
+	};
+	setTimeout(tick, Math.min(healthStartupGraceMs, healthCheckIntervalMs));
+	setInterval(tick, healthCheckIntervalMs);
+};
+
+const startLongRunningCommands = (commands) => {
+	for (const command of commands) {
+		commandDefinitions.set(command.name, command);
+		spawnLongRunningCommand(command);
+	}
+};
+
+const buildHealthTargetsForArgs = (args) =>
+	buildDevHealthTargets({
+		workerPort,
+		attemptWorkerPort,
+		skipAttemptWorker: args.includes("--no-attempt-worker"),
+	});
+
+const printStatus = async () => {
 	const state = readLiveState();
 	if (!state) {
 		console.log("ℹ️ 后台 dev 未运行。");
 		console.log(`默认日志文件: ${logPath}`);
 		return;
 	}
-	console.log("✅ 后台 dev 正在运行。");
+	const healthTargets = buildHealthTargetsForArgs(state.args ?? []);
+	const healthChecks = await checkHealthTargets(healthTargets);
+	const healthSummary = summarizeHealthChecks(healthChecks);
+	const backgroundStatus = classifyBackgroundDevState({
+		pidRunning: true,
+		healthSummary,
+	});
+	const prefix =
+		backgroundStatus.level === "success"
+			? "✅"
+			: backgroundStatus.level === "warn"
+				? "⚠️"
+				: "ℹ️";
+	console.log(
+		`${prefix} ${backgroundStatus.message}：${healthSummary.message}。`,
+	);
 	console.log(`PID: ${state.pid}`);
 	console.log(`启动时间: ${state.startedAt}`);
 	console.log(`参数: ${state.args.join(" ") || "(无)"}`);
 	console.log(`日志模式: ${state.logMode ?? "file"}`);
 	console.log(`日志文件: ${state.logPath ?? "(已关闭)"}`);
+	for (const check of healthChecks) {
+		const checkPrefix = check.ok ? "✅" : "⚠️";
+		const detail = check.ok
+			? `HTTP ${check.status}`
+			: (check.error ?? "unhealthy");
+		console.log(`${checkPrefix} ${check.name}: ${check.url}（${detail}）`);
+	}
+	if (state.health?.checkedAt) {
+		console.log(`最近守护检查: ${state.health.checkedAt}`);
+	}
+	if (state.lastHealthRestartAt) {
+		console.log(
+			`最近自愈重启: ${state.lastHealthRestartService ?? "unknown"} @ ${state.lastHealthRestartAt}`,
+		);
+		console.log(`重启原因: ${state.lastHealthRestartReason ?? "(未知)"}`);
+	}
 };
 
 const stopBackground = async () => {
@@ -827,6 +1018,7 @@ const startBackground = () => {
 		printSync(`ℹ️ 后台 dev 已在运行（PID ${current.pid}）。`);
 		printSync(`日志模式: ${current.logMode ?? "file"}`);
 		printSync(`日志文件: ${current.logPath ?? "(已关闭)"}`);
+		printSync(`查看状态: bun run dev -- --status`);
 		return;
 	}
 
@@ -898,7 +1090,7 @@ const main = async () => {
 	}
 
 	if (statusMode) {
-		printStatus();
+		await printStatus();
 		return;
 	}
 
@@ -929,6 +1121,13 @@ const main = async () => {
 	await applyLocalWorkerMigrations(workerConfigPath);
 	const commands = buildCommands(workerConfigPath);
 	startLongRunningCommands(commands);
+	startHealthWatchdog(
+		buildDevHealthTargets({
+			workerPort,
+			attemptWorkerPort,
+			skipAttemptWorker,
+		}),
+	);
 };
 
 main().catch((error) => {

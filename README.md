@@ -140,8 +140,10 @@ bun run dev -- [可选参数]
 - `--skip-ui-build`：跳过 UI 预构建（用于覆盖 `--build-ui` 默认行为）
 - `--bg`：后台启动
 - `--log-mode file|none`：后台日志策略（默认 `file`，写入 `.dev/dev-runner.log`；`none` 表示不写后台日志）
-- `--status`：查看后台运行状态
+- `--status`：查看后台运行状态，并探测 Worker `/health` 端口是否可用
 - `--stop`：停止后台运行实例
+
+后台守护进程会定时探测本地 `worker`（以及未禁用时的 `attempt-worker`）`/health`。如果父进程仍在但服务端口连续不可用，会在启动宽限期后自动重启异常子进程，并把最近健康检查和自愈重启信息写入 `.dev/dev-runner.json`。可用环境变量调整探测策略：`DEV_HEALTH_CHECK_INTERVAL_MS`、`DEV_HEALTH_CHECK_TIMEOUT_MS`、`DEV_HEALTH_STARTUP_GRACE_MS`、`DEV_HEALTH_RESTART_THRESHOLD`、`DEV_HEALTH_RESTART_COOLDOWN_MS`、`DEV_HEALTH_RESTART_STOP_TIMEOUT_MS`。
 
 常用示例：
 
@@ -169,7 +171,7 @@ bun run dev -- [可选参数]
 - Linux：要求当前发行版启用了 user session 的 systemd；脚本会把仓库绝对路径写入 `WorkingDirectory`
 - Linux：默认属于 user service，通常在用户登录后启动；若需要开机后未登录也自动启动，请额外执行 `sudo loginctl enable-linger $USER`
 - Linux：service 会直接托管 `scripts/dev.mjs` 的守护进程分支
-- `bun run autostart -- status` 会同时显示“是否已启用”“当前是否正在运行”以及 Linux 旧版 `--bg` 配置提示
+- `bun run autostart -- status` 会同时显示“是否已启用”“当前是否正在运行”以及 Linux 旧版 `--bg` 配置提示；若 systemd 未运行但检测到手动后台实例，会显示警告而不是健康运行
 - 登录后真正拉起 Worker / Wrangler / UI 的后台守护链路同样继续沿用 `scripts/dev.mjs` 的日志与运行时配置策略
 
 快捷命令（仅主 Worker + 禁用热缓存）：
