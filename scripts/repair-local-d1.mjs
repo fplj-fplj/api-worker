@@ -50,6 +50,9 @@ const hasMigration = (name) =>
 	);
 
 const addColumnIfMissing = (tableName, columnName, definition) => {
+	if (!hasTable(tableName)) {
+		return false;
+	}
 	const columns = getColumns(tableName);
 	if (columns.has(columnName)) {
 		return false;
@@ -60,6 +63,13 @@ const addColumnIfMissing = (tableName, columnName, definition) => {
 
 const ensureIndex = (name, sql) => {
 	db.exec(`CREATE INDEX IF NOT EXISTS ${name} ${sql}`);
+};
+
+const ensureIndexIfTableExists = (tableName, name, sql) => {
+	if (!hasTable(tableName)) {
+		return;
+	}
+	ensureIndex(name, sql);
 };
 
 const quoteSql = (value) => `'${String(value).replaceAll("'", "''")}'`;
@@ -415,6 +425,43 @@ const buildUpdatedAtCase = () =>
 		),
 	].join("\n\t\t\t\t");
 
+const insertRegistryRowsFromTable = (tableName) => {
+	if (!hasTable(tableName)) {
+		return;
+	}
+	db.exec(`
+		INSERT OR IGNORE INTO model_registry (canonical_model, display_name, provider_hint, created_at, updated_at)
+		SELECT DISTINCT
+			canonical_model,
+			canonical_model,
+			NULL,
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		FROM ${tableName}
+		WHERE canonical_model IS NOT NULL AND TRIM(canonical_model) != '';
+	`);
+};
+
+const insertAliasRowsFromTableColumn = (tableName, columnName) => {
+	if (!hasTable(tableName)) {
+		return;
+	}
+	db.exec(`
+		INSERT OR IGNORE INTO model_aliases (alias, provider_hint, canonical_model, created_at, updated_at)
+		SELECT DISTINCT
+			LOWER(TRIM(${columnName})) AS alias,
+			'' AS provider_hint,
+			canonical_model,
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		FROM ${tableName}
+		WHERE ${columnName} IS NOT NULL
+			AND TRIM(${columnName}) != ''
+			AND canonical_model IS NOT NULL
+			AND TRIM(canonical_model) != '';
+	`);
+};
+
 const seedCanonicalModelDefaults = () => {
 	db.exec(`
 		UPDATE usage_logs
@@ -428,23 +475,29 @@ const seedCanonicalModelDefaults = () => {
 		WHERE canonical_model = 'anthropic/claude-sonnet-4-20250514';
 	`);
 
-	db.exec(`
-		UPDATE model_prices
-		SET canonical_model = 'anthropic/claude-sonnet-4'
-		WHERE canonical_model = 'anthropic/claude-sonnet-4-20250514';
-	`);
+	if (hasTable("model_prices")) {
+		db.exec(`
+			UPDATE model_prices
+			SET canonical_model = 'anthropic/claude-sonnet-4'
+			WHERE canonical_model = 'anthropic/claude-sonnet-4-20250514';
+		`);
+	}
 
-	db.exec(`
-		UPDATE channel_model_capabilities
-		SET canonical_model = 'anthropic/claude-sonnet-4'
-		WHERE canonical_model = 'anthropic/claude-sonnet-4-20250514';
-	`);
+	if (hasTable("channel_model_capabilities")) {
+		db.exec(`
+			UPDATE channel_model_capabilities
+			SET canonical_model = 'anthropic/claude-sonnet-4'
+			WHERE canonical_model = 'anthropic/claude-sonnet-4-20250514';
+		`);
+	}
 
-	db.exec(`
-		UPDATE model_aliases
-		SET canonical_model = 'anthropic/claude-sonnet-4', updated_at = CURRENT_TIMESTAMP
-		WHERE canonical_model = 'anthropic/claude-sonnet-4-20250514';
-	`);
+	if (hasTable("model_aliases")) {
+		db.exec(`
+			UPDATE model_aliases
+			SET canonical_model = 'anthropic/claude-sonnet-4', updated_at = CURRENT_TIMESTAMP
+			WHERE canonical_model = 'anthropic/claude-sonnet-4-20250514';
+		`);
+	}
 
 	for (const item of legacyCanonicalRegexResets) {
 		db.exec(`
@@ -585,90 +638,62 @@ try {
 			OR upstream_model_raw IS NULL;
 	`);
 
-	db.exec(`
-		UPDATE model_prices
-		SET canonical_model = COALESCE(
-			NULLIF(TRIM(canonical_model), ''),
-			LOWER(TRIM(COALESCE(model_name, model_pattern)))
-		)
-		WHERE canonical_model IS NULL;
-	`);
+	if (hasTable("model_prices")) {
+		db.exec(`
+			UPDATE model_prices
+			SET canonical_model = COALESCE(
+				NULLIF(TRIM(canonical_model), ''),
+				LOWER(TRIM(COALESCE(model_name, model_pattern)))
+			)
+			WHERE canonical_model IS NULL;
+		`);
+	}
 
-	db.exec(`
-		UPDATE channel_model_capabilities
-		SET canonical_model = COALESCE(NULLIF(TRIM(canonical_model), ''), LOWER(TRIM(model)))
-		WHERE canonical_model IS NULL;
-	`);
+	if (hasTable("channel_model_capabilities")) {
+		db.exec(`
+			UPDATE channel_model_capabilities
+			SET canonical_model = COALESCE(NULLIF(TRIM(canonical_model), ''), LOWER(TRIM(model)))
+			WHERE canonical_model IS NULL;
+		`);
+	}
 
-	db.exec(`
-		INSERT OR IGNORE INTO model_registry (canonical_model, display_name, provider_hint, created_at, updated_at)
-		SELECT DISTINCT
-			canonical_model,
-			canonical_model,
-			NULL,
-			CURRENT_TIMESTAMP,
-			CURRENT_TIMESTAMP
-		FROM (
-			SELECT canonical_model FROM usage_logs WHERE canonical_model IS NOT NULL AND TRIM(canonical_model) != ''
-			UNION
-			SELECT canonical_model FROM attempt_events WHERE canonical_model IS NOT NULL AND TRIM(canonical_model) != ''
-			UNION
-			SELECT canonical_model FROM model_prices WHERE canonical_model IS NOT NULL AND TRIM(canonical_model) != ''
-			UNION
-			SELECT canonical_model FROM channel_model_capabilities WHERE canonical_model IS NOT NULL AND TRIM(canonical_model) != ''
-		)
-	`);
+	insertRegistryRowsFromTable("usage_logs");
+	insertRegistryRowsFromTable("attempt_events");
+	insertRegistryRowsFromTable("model_prices");
+	insertRegistryRowsFromTable("channel_model_capabilities");
 
-	db.exec(`
-		INSERT OR IGNORE INTO model_aliases (alias, provider_hint, canonical_model, created_at, updated_at)
-		SELECT DISTINCT
-			LOWER(TRIM(alias_value)) AS alias,
-			'' AS provider_hint,
-			canonical_model,
-			CURRENT_TIMESTAMP,
-			CURRENT_TIMESTAMP
-		FROM (
-			SELECT model AS alias_value, canonical_model FROM usage_logs
-			UNION
-			SELECT request_model_raw AS alias_value, canonical_model FROM usage_logs
-			UNION
-			SELECT upstream_model_raw AS alias_value, canonical_model FROM usage_logs
-			UNION
-			SELECT model AS alias_value, canonical_model FROM attempt_events
-			UNION
-			SELECT request_model_raw AS alias_value, canonical_model FROM attempt_events
-			UNION
-			SELECT upstream_model_raw AS alias_value, canonical_model FROM attempt_events
-			UNION
-			SELECT model_pattern AS alias_value, canonical_model FROM model_prices
-			UNION
-			SELECT model_name AS alias_value, canonical_model FROM model_prices
-			UNION
-			SELECT model AS alias_value, canonical_model FROM channel_model_capabilities
-		)
-		WHERE alias_value IS NOT NULL
-			AND TRIM(alias_value) != ''
-			AND canonical_model IS NOT NULL
-			AND TRIM(canonical_model) != ''
-	`);
+	insertAliasRowsFromTableColumn("usage_logs", "model");
+	insertAliasRowsFromTableColumn("usage_logs", "request_model_raw");
+	insertAliasRowsFromTableColumn("usage_logs", "upstream_model_raw");
+	insertAliasRowsFromTableColumn("attempt_events", "model");
+	insertAliasRowsFromTableColumn("attempt_events", "request_model_raw");
+	insertAliasRowsFromTableColumn("attempt_events", "upstream_model_raw");
+	insertAliasRowsFromTableColumn("model_prices", "model_pattern");
+	insertAliasRowsFromTableColumn("model_prices", "model_name");
+	insertAliasRowsFromTableColumn("channel_model_capabilities", "model");
 
-	ensureIndex(
+	ensureIndexIfTableExists(
+		"usage_logs",
 		"idx_usage_logs_canonical_model",
 		"ON usage_logs (canonical_model)",
 	);
-	ensureIndex(
+	ensureIndexIfTableExists(
+		"usage_logs",
 		"idx_usage_logs_canonical_model_created_at",
 		"ON usage_logs (canonical_model, created_at)",
 	);
-	ensureIndex(
+	ensureIndexIfTableExists(
+		"attempt_events",
 		"idx_attempt_events_canonical_model",
 		"ON attempt_events (canonical_model)",
 	);
-	ensureIndex(
+	ensureIndexIfTableExists(
+		"model_prices",
 		"idx_model_prices_canonical_model",
 		"ON model_prices (canonical_model)",
 	);
-	ensureIndex(
+	ensureIndexIfTableExists(
+		"channel_model_capabilities",
 		"idx_channel_model_capabilities_canonical_model",
 		"ON channel_model_capabilities (canonical_model)",
 	);
