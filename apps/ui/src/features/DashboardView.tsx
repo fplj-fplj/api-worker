@@ -22,7 +22,13 @@ import {
 	TabsTrigger,
 } from "../components/ui";
 import { cx } from "../components/ui/utils";
-import type { DashboardData, DashboardQuery, Site, Token } from "../core/types";
+import type {
+	DashboardData,
+	DashboardQuery,
+	PricingCurrency,
+	Site,
+	Token,
+} from "../core/types";
 import {
 	getBeijingDateString,
 	loadColumnPrefs,
@@ -79,6 +85,8 @@ type DashboardViewProps = {
 	query: DashboardQuery;
 	channels: Site[];
 	tokens: Token[];
+	pricingCurrency: PricingCurrency;
+	pricingUsdCnyRate: number;
 	onQueryChange: (patch: Partial<DashboardQuery>) => void;
 	onApply: (next?: DashboardQuery) => void;
 };
@@ -99,6 +107,8 @@ export const DashboardView = ({
 	query,
 	channels,
 	tokens,
+	pricingCurrency,
+	pricingUsdCnyRate,
 	onQueryChange,
 	onApply,
 }: DashboardViewProps) => {
@@ -650,9 +660,13 @@ export const DashboardView = ({
 				<Card variant="compact">
 					<Chip>费用</Chip>
 					<div class="app-kpi-value app-kpi-value--compact">
-						{formatChargeByCurrency(dashboard.chargeByCurrency ?? [])}
+						{formatChargeByCurrency(
+							dashboard.chargeByCurrency ?? [],
+							pricingCurrency,
+							pricingUsdCnyRate,
+						)}
 					</div>
-					<span class="app-kpi-meta">按币种分别汇总</span>
+					<span class="app-kpi-meta">按当前计价币种统一展示</span>
 				</Card>
 				<Card variant="compact">
 					<Chip>成功率</Chip>

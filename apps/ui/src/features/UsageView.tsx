@@ -17,6 +17,7 @@ import {
 } from "../components/ui";
 import type {
 	ModelItem,
+	PricingCurrency,
 	Site,
 	Token,
 	UsageLog,
@@ -42,6 +43,8 @@ type UsageViewProps = {
 	sites: Site[];
 	tokens: Token[];
 	models: ModelItem[];
+	pricingCurrency: PricingCurrency;
+	pricingUsdCnyRate: number;
 	onRefresh: () => void;
 	onPageChange: (next: number) => void;
 	onPageSizeChange: (next: number) => void;
@@ -176,6 +179,8 @@ export const UsageView = ({
 	sites,
 	tokens,
 	models,
+	pricingCurrency,
+	pricingUsdCnyRate,
 	onRefresh,
 	onPageChange,
 	onPageSizeChange,
@@ -189,7 +194,6 @@ export const UsageView = ({
 		{ id: "model", label: "模型" },
 		{ id: "channel", label: "渠道" },
 		{ id: "token", label: "令牌" },
-		{ id: "prompt_tokens", label: "输入 Tokens" },
 		{ id: "uncached_input_tokens", label: "普通输入" },
 		{ id: "cache_read_input_tokens", label: "缓存读取" },
 		{ id: "cache_write_input_tokens", label: "缓存写入" },
@@ -502,11 +506,6 @@ export const UsageView = ({
 											令牌
 										</th>
 									)}
-									{visibleColumnSet.has("prompt_tokens") && (
-										<th class="sticky top-0 bg-[color:var(--app-surface-strong)]/95">
-											输入 Tokens
-										</th>
-									)}
 									{visibleColumnSet.has("uncached_input_tokens") && (
 										<th class="sticky top-0 bg-[color:var(--app-surface-strong)]/95">
 											普通输入
@@ -635,11 +634,6 @@ export const UsageView = ({
 														{log.token_name ?? log.token_id ?? "-"}
 													</td>
 												)}
-												{visibleColumnSet.has("prompt_tokens") && (
-													<td class="px-3 py-2.5 text-left text-xs text-[color:var(--app-ink)] sm:text-sm">
-														{formatUsageTokens(log, log.prompt_tokens)}
-													</td>
-												)}
 												{visibleColumnSet.has("uncached_input_tokens") && (
 													<td class="px-3 py-2.5 text-left text-xs text-[color:var(--app-ink)] sm:text-sm">
 														{formatUsageTokens(log, log.uncached_input_tokens)}
@@ -676,6 +670,8 @@ export const UsageView = ({
 														{formatChargeAmount(
 															log.charge_amount,
 															log.charge_currency,
+															pricingCurrency,
+															pricingUsdCnyRate,
 														)}
 													</td>
 												)}
@@ -876,6 +872,8 @@ export const UsageView = ({
 										{formatChargeAmount(
 											activeErrorLog.charge_amount,
 											activeErrorLog.charge_currency,
+											pricingCurrency,
+											pricingUsdCnyRate,
 										)}
 									</span>
 								</div>

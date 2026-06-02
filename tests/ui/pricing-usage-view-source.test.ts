@@ -12,6 +12,8 @@ describe("pricing and usage view source contracts", () => {
 		expect(usageViewSource).not.toContain('label: "计费状态"');
 		expect(usageViewSource).not.toContain('visibleColumnSet.has("charge_status")');
 		expect(usageViewSource).not.toContain("getChargeStatusLabel");
+		expect(usageViewSource).not.toContain('label: "输入 Tokens"');
+		expect(usageViewSource).not.toContain('visibleColumnSet.has("prompt_tokens")');
 	});
 
 	it("价格行编辑保持稳定的单元格结构", () => {
@@ -28,14 +30,17 @@ describe("pricing and usage view source contracts", () => {
 		expect(pricingViewSource).toContain("普通输入 / 1M tokens");
 		expect(pricingViewSource).toContain("缓存读/写 / 1M tokens");
 		expect(pricingViewSource).toContain("输出 / 1M tokens");
-		expect(pricingViewSource).toContain("单位：{pricingCurrency} / 每 1M tokens");
+		expect(pricingViewSource).toContain(
+			"单位：{pricingCurrencySymbol} / 每 1M tokens",
+		);
 	});
 
 	it("价格中心提供明确添加入口和表格筛选", () => {
 		expect(pricingViewSource).toContain("添加价格");
 		expect(pricingViewSource).toContain("计费匹配规则");
 		expect(pricingViewSource).toContain("可直接切换");
-		expect(pricingViewSource).toContain("USD/CNY");
+		expect(pricingViewSource).toContain("人民币");
+		expect(pricingViewSource).toContain("美元 ($)");
 		expect(pricingViewSource).toContain("pricingCurrencyOptions");
 		expect(pricingViewSource).toContain("onPricingCurrencyChange");
 		expect(pricingViewSource).toContain("目标币种");

@@ -29,7 +29,10 @@ import {
 	persistColumnPrefs,
 } from "../core/utils";
 import {
+	formatCurrencyAmount,
 	formatPricingSyncItemLabel,
+	getCurrencyDisplayLabel,
+	getCurrencySymbol,
 	getPricingSyncMessageLabel,
 	getPriceSourceLabel,
 	getPricingSyncItemTone,
@@ -117,12 +120,12 @@ const statusFilterOptions = [
 const pricingCurrencyOptions = [
 	{
 		value: "CNY",
-		label: "CNY",
+		label: "人民币 (¥)",
 		description: "人民币计价，适合直接维护国内销售价",
 	},
 	{
 		value: "USD",
-		label: "USD",
+		label: "美元 ($)",
 		description: "美元计价，适合直接对照上游官方价格",
 	},
 ];
@@ -141,10 +144,7 @@ const getPriceSourceVariant = (
 };
 
 const formatPrice = (value: number, currency: string) => {
-	if (!Number.isFinite(value)) {
-		return "-";
-	}
-	return `${currency} ${value.toFixed(6)}`;
+	return formatCurrencyAmount(value, currency);
 };
 
 const parsePriceValue = (value: string): number | null => {
@@ -215,6 +215,8 @@ export const PricingView = ({
 	onPricingDelete,
 	lastPricingSyncResult,
 }: PricingViewProps) => {
+	const pricingCurrencyLabel = getCurrencyDisplayLabel(pricingCurrency);
+	const pricingCurrencySymbol = getCurrencySymbol(pricingCurrency);
 	const [visibleColumns, setVisibleColumns] = useState(() =>
 		loadColumnPrefs(
 			"columns:model-prices",
@@ -446,8 +448,8 @@ export const PricingView = ({
 				<div>
 					<h3 class="app-title text-lg">价格中心</h3>
 					<p class="app-subtitle">
-						维护每 1M tokens 的下游销售价，手动价优先于同步价，可直接切换
-						USD/CNY。
+						维护每 1M tokens 的下游销售价，手动价优先于同步价，可直接切换 人民币
+						¥ / 美元 $。
 					</p>
 				</div>
 				<div class="flex flex-wrap items-center gap-2">
@@ -510,7 +512,7 @@ export const PricingView = ({
 							<DialogTitle>最近同步结果</DialogTitle>
 							<DialogDescription>
 								{lastPricingSyncResult
-									? `最后记录 ${formatDateTime(lastPricingSyncResult.runs_at)} · 目标币种 ${lastPricingSyncResult.currency} · USD/CNY ${lastPricingSyncResult.usd_cny_rate} · 更新 ${syncUpdatedCount} 条`
+									? `最后记录 ${formatDateTime(lastPricingSyncResult.runs_at)} · 目标币种 ${getCurrencyDisplayLabel(lastPricingSyncResult.currency)} · 美元/人民币汇率 ${lastPricingSyncResult.usd_cny_rate} · 更新 ${syncUpdatedCount} 条`
 									: "暂无同步记录。"}
 							</DialogDescription>
 						</div>
@@ -607,7 +609,7 @@ export const PricingView = ({
 									价格
 								</div>
 								<div class="text-xs text-[color:var(--app-ink-muted)]">
-									单位：{pricingCurrency} / 每 1M tokens
+									单位：{pricingCurrencySymbol} / 每 1M tokens
 								</div>
 							</div>
 							<div class="grid items-start gap-4 md:grid-cols-2">
@@ -642,7 +644,7 @@ export const PricingView = ({
 								<p class="mr-auto text-xs text-rose-600">{priceError}</p>
 							) : (
 								<p class="mr-auto text-xs text-[color:var(--app-ink-muted)]">
-									当前计价币种：{pricingCurrency}
+									当前计价币种：{pricingCurrencyLabel}
 								</p>
 							)}
 							<Button

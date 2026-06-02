@@ -14,7 +14,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 	Input,
-	Select,
+	SingleSelect,
 	Table,
 	TableBody,
 	TableCell,
@@ -53,11 +53,19 @@ type FormState = {
 type MergeState = {
 	alias: string;
 	targetCanonicalModel: string;
+	targetOptions: MergeTargetOption[];
+	recommendedTargetCanonicalModel: string;
 };
 
 type ResolvedConflictMerge = {
 	alias: string;
 	targetCanonicalModel: string;
+};
+
+type MergeTargetOption = {
+	canonicalModel: string;
+	label: string;
+	kind: "existing" | "matched";
 };
 
 const initialForm: FormState = {
@@ -88,6 +96,42 @@ const resolveAutoMergeTarget = (
 	}
 	return null;
 };
+
+const buildMergeTargetOptions = (
+	conflict: CanonicalModelSyncConflict,
+): MergeTargetOption[] => {
+	const options = new Map<string, MergeTargetOption>();
+	for (const canonicalModel of conflict.existing_canonical_models) {
+		if (!canonicalModel.trim()) {
+			continue;
+		}
+		options.set(canonicalModel, {
+			canonicalModel,
+			label: `${canonicalModel}（已有归属）`,
+			kind: "existing",
+		});
+	}
+	for (const canonicalModel of conflict.matched_canonical_models) {
+		if (!canonicalModel.trim() || options.has(canonicalModel)) {
+			continue;
+		}
+		options.set(canonicalModel, {
+			canonicalModel,
+			label: `${canonicalModel}（规则命中）`,
+			kind: "matched",
+		});
+	}
+	return Array.from(options.values()).sort((left, right) => {
+		if (left.kind !== right.kind) {
+			return left.kind === "existing" ? -1 : 1;
+		}
+		return left.canonicalModel.localeCompare(right.canonicalModel);
+	});
+};
+
+const resolvePreferredMergeTarget = (
+	targetOptions: MergeTargetOption[],
+): string => targetOptions[0]?.canonicalModel ?? "";
 
 export const CanonicalModelsView = ({
 	items,
@@ -153,13 +197,6 @@ export const CanonicalModelsView = ({
 		() => new Map(items.map((item) => [item.canonical_model, item] as const)),
 		[items],
 	);
-	const mergeTargetOptions = useMemo(
-		() =>
-			[...items].sort((left, right) =>
-				left.canonical_model.localeCompare(right.canonical_model),
-			),
-		[items],
-	);
 	const autoMergeableConflicts = useMemo<ResolvedConflictMerge[]>(
 		() =>
 			(syncResult?.conflicts ?? [])
@@ -208,12 +245,15 @@ export const CanonicalModelsView = ({
 		setError(null);
 	};
 
-	const openMerge = (alias: string, targets: string[]) => {
+	const openMerge = (conflict: CanonicalModelSyncConflict) => {
+		const targetOptions = buildMergeTargetOptions(conflict);
+		const recommendedTarget = resolvePreferredMergeTarget(targetOptions);
 		setError(null);
 		setMergeState({
-			alias,
-			targetCanonicalModel:
-				targets.find(Boolean) ?? mergeTargetOptions[0]?.canonical_model ?? "",
+			alias: conflict.alias,
+			targetCanonicalModel: recommendedTarget,
+			targetOptions,
+			recommendedTargetCanonicalModel: recommendedTarget,
 		});
 	};
 
@@ -470,14 +510,47 @@ export const CanonicalModelsView = ({
 												<TableRow key={`conflict:${item.alias}`}>
 													<TableCell>{item.alias}</TableCell>
 													<TableCell>
-														<div class="max-w-[220px] break-words">
-															{item.matched_canonical_models.join(" · ")}
+														<div class="flex max-w-[280px] flex-wrap gap-1.5">
+															{item.matched_canonical_models.length > 0 ? (
+																item.matched_canonical_models.map(
+																	(canonicalModel) => (
+																		<Chip
+																			key={`${item.alias}:matched:${canonicalModel}`}
+																			variant="accent"
+																			class="max-w-[240px] truncate text-[10px]"
+																			title={canonicalModel}
+																		>
+																			{canonicalModel}
+																		</Chip>
+																	),
+																)
+															) : (
+																<span class="text-[11px] text-[color:var(--app-ink-muted)]">
+																	-
+																</span>
+															)}
 														</div>
 													</TableCell>
 													<TableCell>
-														<div class="max-w-[220px] break-words">
-															{item.existing_canonical_models.join(" · ") ||
-																"-"}
+														<div class="flex max-w-[280px] flex-wrap gap-1.5">
+															{item.existing_canonical_models.length > 0 ? (
+																item.existing_canonical_models.map(
+																	(canonicalModel) => (
+																		<Chip
+																			key={`${item.alias}:existing:${canonicalModel}`}
+																			variant="success"
+																			class="max-w-[240px] truncate text-[10px]"
+																			title={canonicalModel}
+																		>
+																			{canonicalModel}
+																		</Chip>
+																	),
+																)
+															) : (
+																<span class="text-[11px] text-[color:var(--app-ink-muted)]">
+																	-
+																</span>
+															)}
 														</div>
 													</TableCell>
 													<TableCell>
@@ -491,12 +564,11 @@ export const CanonicalModelsView = ({
 															type="button"
 															variant="primary"
 															class="h-8 px-3 text-[11px]"
-															onClick={() =>
-																openMerge(item.alias, [
-																	...item.matched_canonical_models,
-																	...item.existing_canonical_models,
-																])
+															disabled={
+																item.matched_canonical_models.length === 0 &&
+																item.existing_canonical_models.length === 0
 															}
+															onClick={() => openMerge(item)}
 														>
 															合并到...
 														</Button>
@@ -620,8 +692,22 @@ export const CanonicalModelsView = ({
 												</div>
 											</TableCell>
 											<TableCell>
-												<div class="max-w-[420px] break-words text-[11px] text-[color:var(--app-ink-muted)]">
-													{formatAliasPreview(item) || "-"}
+												<div class="flex max-w-[420px] flex-wrap gap-1.5">
+													{item.aliases.length > 0 ? (
+														item.aliases.map((aliasItem) => (
+															<Chip
+																key={`${item.canonical_model}:${aliasItem.alias}`}
+																class="max-w-[220px] truncate text-[10px]"
+																title={aliasItem.alias}
+															>
+																{aliasItem.alias}
+															</Chip>
+														))
+													) : (
+														<span class="text-[11px] text-[color:var(--app-ink-muted)]">
+															-
+														</span>
+													)}
 												</div>
 											</TableCell>
 											<TableCell>{formatDateTime(item.updated_at)}</TableCell>
@@ -775,37 +861,56 @@ export const CanonicalModelsView = ({
 							</p>
 						</div>
 						<div class="space-y-1.5">
-							<label
-								class="block text-xs font-semibold text-[color:var(--app-ink-muted)]"
-								for="merge-target-canonical-model"
-							>
+							<p class="block text-xs font-semibold text-[color:var(--app-ink-muted)]">
 								合并到统一名
-							</label>
-							<Select
-								id="merge-target-canonical-model"
-								value={mergeState?.targetCanonicalModel ?? ""}
-								onChange={(event) =>
-									setMergeState((prev) =>
-										prev
-											? {
-													...prev,
-													targetCanonicalModel: (
-														event.currentTarget as HTMLSelectElement
-													).value,
-												}
-											: prev,
-									)
-								}
-							>
-								{mergeTargetOptions.map((item) => (
-									<option
-										key={item.canonical_model}
-										value={item.canonical_model}
-									>
-										{item.canonical_model}
-									</option>
-								))}
-							</Select>
+							</p>
+							<div id="merge-target-canonical-model">
+								<SingleSelect
+									value={mergeState?.targetCanonicalModel ?? ""}
+									placeholder="请选择合并目标"
+									options={
+										mergeState?.targetOptions.map((item) => ({
+											value: item.canonicalModel,
+											label: item.label,
+											description:
+												item.kind === "existing"
+													? "当前这个别名已经挂在这个统一名下"
+													: "这是规则匹配出来的候选统一名",
+										})) ?? []
+									}
+									buttonClass="min-h-11 w-full justify-between rounded-2xl border-white/70 bg-white/75 px-3 text-left text-sm shadow-[0_16px_40px_rgba(15,23,42,0.08)]"
+									onChange={(next) =>
+										setMergeState((prev) =>
+											prev
+												? {
+														...prev,
+														targetCanonicalModel: next,
+													}
+												: prev,
+										)
+									}
+									disabled={(mergeState?.targetOptions.length ?? 0) === 0}
+								/>
+							</div>
+							<div class="space-y-2">
+								{mergeState?.recommendedTargetCanonicalModel ? (
+									<div class="flex flex-wrap items-center gap-2">
+										<span class="text-xs text-[color:var(--app-ink-muted)]">
+											推荐目标
+										</span>
+										<Chip
+											variant="success"
+											class="max-w-[360px] truncate text-[10px]"
+											title={mergeState.recommendedTargetCanonicalModel}
+										>
+											{mergeState.recommendedTargetCanonicalModel}
+										</Chip>
+									</div>
+								) : null}
+								<p class="text-xs text-[color:var(--app-ink-muted)]">
+									默认优先选择已有归属；如果还没有已有归属，才会退回规则命中的候选统一名。
+								</p>
+							</div>
 						</div>
 						<div class="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-700">
 							这一步会把当前原始名字追加到目标统一模型的精确别名列表里，适合处理“多规则命中”或“已有归属”这两类冲突。

@@ -350,7 +350,7 @@ bun run dev -- --remote-d1
 
 使用日志中缺失 usage 的请求会保留 token 字段为空；流式响应缺少 usage 时仍会按策略记录告警，但不会再把未知 token 数误写成 0。历史记录中 `usage_source=none` 且 token 为 0 的行会在管理台显示为 `-`。
 
-价格中心规则：模型价格按 `manual > official_sync` 选择，模型匹配支持 `*` 通配；手动价用于下游销售价覆盖，同步价来自所选价格源的每日任务或价格中心手动同步。同步流程会先刷新 USD/CNY 在线汇率，再解析页面表格或内联 JSON，成功时标为“同步精确价”；无法结构化解析时才退回页面文本抓取，并标为“同步估算价”。所有价格会在入库前按设置页的全局计价币种统一换算，请求落库时记录普通输入、缓存读取、缓存写入、输入合计、计费金额、计费状态和命中的价格来源；OpenAI cached tokens、Claude cache read/creation tokens、Gemini cachedContentTokenCount 会归一到缓存 token 字段。
+价格中心规则：模型价格按 `manual > official_sync` 选择，模型匹配支持 `*` 通配；手动价用于下游销售价覆盖，同步价来自所选价格源的每日任务或价格中心手动同步。同步流程会先刷新美元/人民币在线汇率，再解析页面表格或内联 JSON，成功时标为“同步精确价”；无法结构化解析时才退回页面文本抓取，并标为“同步估算价”。所有价格会在入库前按设置页的全局计价币种统一换算，请求落库时记录普通输入、缓存读取、缓存写入、输入合计、计费金额、计费状态和命中的价格来源；OpenAI cached tokens、Claude cache read/creation tokens、Gemini cachedContentTokenCount 会归一到缓存 token 字段。
 
 - 令牌
 - `GET /api/tokens`

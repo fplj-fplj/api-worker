@@ -9,6 +9,7 @@ import {
 	MultiSelect,
 	Switch,
 } from "../components/ui";
+import { getCurrencyDisplayLabel } from "./pricing-display";
 import type {
 	BackupImportMode,
 	BackupSettings,
@@ -88,8 +89,8 @@ const backupSyncModeOptions: {
 ];
 
 const pricingCurrencyOptions = [
-	{ value: "CNY", label: "CNY" },
-	{ value: "USD", label: "USD" },
+	{ value: "CNY", label: getCurrencyDisplayLabel("CNY") },
+	{ value: "USD", label: getCurrencyDisplayLabel("USD") },
 ];
 
 const backupImportModeOptions: {
@@ -260,6 +261,9 @@ export const SettingsView = ({
 	const backupConfigLabel = backupSettings.config_ready
 		? "WebDAV 已就绪"
 		: "WebDAV 未配置完整";
+	const pricingCurrencyLabel = getCurrencyDisplayLabel(
+		settingsForm.pricing_currency,
+	);
 
 	useEffect(() => {
 		const handleDocumentClick = (event: MouseEvent) => {
@@ -554,7 +558,7 @@ export const SettingsView = ({
 							<div class="app-settings-row__main">
 								<span class="app-settings-row__label">计价币种</span>
 								<p class="app-settings-row__hint">
-									价格中心和使用日志统一按这个币种保存，不再混用 USD/CNY。
+									价格中心和使用日志统一按这个币种显示与保存，不再混用人民币/美元。
 								</p>
 							</div>
 							<div class="app-settings-row__control">
@@ -574,7 +578,7 @@ export const SettingsView = ({
 										}}
 									>
 										<span class="app-settings-custom-select__value">
-											{settingsForm.pricing_currency}
+											{pricingCurrencyLabel}
 										</span>
 									</button>
 									<DropdownMenu
@@ -610,7 +614,7 @@ export const SettingsView = ({
 									class="app-settings-row__label"
 									for="pricing-usd-cny-rate"
 								>
-									USD/CNY 汇率
+									美元/人民币汇率
 								</label>
 								<p class="app-settings-row__hint">
 									每日同步会从在线汇率 API 更新；不可用时使用这里保存的值。

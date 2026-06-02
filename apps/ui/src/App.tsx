@@ -93,6 +93,7 @@ import { DashboardView } from "./features/DashboardView";
 import { LoginView } from "./features/LoginView";
 import { ModelsView } from "./features/ModelsView";
 import { PricingView } from "./features/PricingView";
+import { getCurrencyDisplayLabel } from "./features/pricing-display";
 import { isRequestEntryFormatAllowedForSiteType } from "./features/request-entry-formats";
 import { SettingsView } from "./features/SettingsView";
 import { shouldVerifyAfterSiteSubmit } from "./features/site-model-display";
@@ -132,6 +133,51 @@ const pathToTab: Record<string, TabId> = {
 	"/tokens": "tokens",
 	"/usage": "usage",
 	"/settings": "settings",
+};
+
+const canonicalModelSyncResultStorageKey = "canonical-models:sync-result";
+
+const loadCanonicalModelSyncResult = (): CanonicalModelSyncResult | null => {
+	if (typeof window === "undefined") {
+		return null;
+	}
+	try {
+		const raw = window.localStorage.getItem(canonicalModelSyncResultStorageKey);
+		if (!raw) {
+			return null;
+		}
+		const parsed = JSON.parse(raw);
+		if (!parsed || typeof parsed !== "object") {
+			return null;
+		}
+		if (
+			!("runs_at" in parsed) ||
+			!("conflicts" in parsed) ||
+			!("invalid_rules" in parsed) ||
+			!("imported_items" in parsed)
+		) {
+			return null;
+		}
+		return parsed as CanonicalModelSyncResult;
+	} catch (_error) {
+		return null;
+	}
+};
+
+const persistCanonicalModelSyncResult = (
+	result: CanonicalModelSyncResult | null,
+) => {
+	if (typeof window === "undefined") {
+		return;
+	}
+	if (!result) {
+		window.localStorage.removeItem(canonicalModelSyncResultStorageKey);
+		return;
+	}
+	window.localStorage.setItem(
+		canonicalModelSyncResultStorageKey,
+		JSON.stringify(result),
+	);
 };
 
 type ConfirmState = {
@@ -594,7 +640,9 @@ const App = () => {
 		[],
 	);
 	const [canonicalModelSyncResult, setCanonicalModelSyncResult] =
-		useState<CanonicalModelSyncResult | null>(null);
+		useState<CanonicalModelSyncResult | null>(() =>
+			loadCanonicalModelSyncResult(),
+		);
 	const [lastPricingSyncResult, setLastPricingSyncResult] =
 		useState<PricingSyncResult | null>(null);
 	const [backupSettings, setBackupSettings] = useState<BackupSettings>(
@@ -983,6 +1031,9 @@ const App = () => {
 
 	const pricingCurrency =
 		data.settings?.pricing_settings?.currency ?? settingsForm.pricing_currency;
+	const pricingUsdCnyRate =
+		data.settings?.pricing_settings?.usd_cny_rate ??
+		(Number(settingsForm.pricing_usd_cny_rate || "7.2") || 7.2);
 	const pricingSyncSources =
 		data.settings?.pricing_settings?.sync_sources ??
 		settingsForm.pricing_sync_sources;
@@ -2139,7 +2190,7 @@ const App = () => {
 				return;
 			}
 			if (Number.isNaN(pricingUsdCnyRate) || pricingUsdCnyRate <= 0) {
-				pushNotice("warning", "USD/CNY 汇率需为大于 0 的数字");
+				pushNotice("warning", "美元/人民币汇率需为大于 0 的数字");
 				return;
 			}
 			const backupScheduleTime = backupSettings.schedule_time.trim();
@@ -3102,7 +3153,7 @@ const App = () => {
 			pushNotice(
 				result.ok ? "success" : "warning",
 				result.ok
-					? `价格同步完成，按 ${result.currency} 更新 ${total} 条：精确 ${exactTotal} 条，估算 ${estimatedTotal} 条，USD/CNY ${result.usd_cny_rate}`
+					? `价格同步完成，按 ${getCurrencyDisplayLabel(result.currency)} 更新 ${total} 条：精确 ${exactTotal} 条，估算 ${estimatedTotal} 条，美元/人民币汇率 ${result.usd_cny_rate}`
 					: "价格同步完成，但没有抓到可用价格",
 			);
 		} catch (error) {
@@ -3138,7 +3189,10 @@ const App = () => {
 					}),
 				});
 				await loadPricingContext();
-				pushNotice("success", `价格货币已切换为 ${currency}`);
+				pushNotice(
+					"success",
+					`价格货币已切换为 ${getCurrencyDisplayLabel(currency)}`,
+				);
 			} catch (error) {
 				pushNotice("error", (error as Error).message);
 			} finally {
@@ -3445,6 +3499,10 @@ const App = () => {
 		setUsagePage((prev) => Math.min(prev, usageTotalPages));
 	}, [usageTotalPages]);
 
+	useEffect(() => {
+		persistCanonicalModelSyncResult(canonicalModelSyncResult);
+	}, [canonicalModelSyncResult]);
+
 	const activeLabel = useMemo(
 		() => tabs.find((tab) => tab.id === activeTab)?.label ?? "管理台",
 		[activeTab],
@@ -3491,6 +3549,8 @@ const App = () => {
 					query={dashboardQuery}
 					channels={data.sites}
 					tokens={data.tokens}
+					pricingCurrency={pricingCurrency}
+					pricingUsdCnyRate={pricingUsdCnyRate}
 					onQueryChange={handleDashboardQueryChange}
 					onApply={handleDashboardApply}
 					onRefresh={handleDashboardRefresh}
@@ -3618,6 +3678,8 @@ const App = () => {
 					sites={data.sites}
 					tokens={data.tokens}
 					models={data.models}
+					pricingCurrency={pricingCurrency}
+					pricingUsdCnyRate={pricingUsdCnyRate}
 					onRefresh={handleUsageRefresh}
 					onPageChange={handleUsagePageChange}
 					onPageSizeChange={handleUsagePageSizeChange}

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	formatChargeByCurrency,
 	formatChargeAmount,
 	formatPricingSyncItemLabel,
+	getCurrencyDisplayLabel,
 	getPriceSourceLabel,
 	getPricingSyncItemTone,
 } from "../../apps/ui/src/features/pricing-display";
@@ -17,7 +19,19 @@ describe("pricing display helpers", () => {
 	});
 
 	it("单条金额保留自己的单位", () => {
-		expect(formatChargeAmount(0.42, "CNY")).toBe("CNY 0.420000");
+		expect(formatChargeAmount(0.42, "CNY")).toBe("¥0.420000");
+		expect(formatChargeAmount(7.2, "CNY", "USD", 7.2)).toBe("$1.000000");
+		expect(
+			formatChargeByCurrency(
+				[
+					{ currency: "USD", amount: 1 },
+					{ currency: "CNY", amount: 7.2 },
+				],
+				"USD",
+				7.2,
+			),
+		).toBe("$2.000000");
+		expect(getCurrencyDisplayLabel("CNY")).toBe("人民币 (¥)");
 	});
 
 	it("同步结果逐来源展示成功数量和失败原因", () => {
