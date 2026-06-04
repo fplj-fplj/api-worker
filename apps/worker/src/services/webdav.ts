@@ -16,6 +16,15 @@ type WebdavRequestOptions = {
 	trailingSlash?: boolean;
 };
 
+const decodeJsonBody = async <T>(response: Response): Promise<T> => {
+	const buffer = await response.arrayBuffer();
+	const text = new TextDecoder()
+		.decode(buffer)
+		.replace(/^\uFEFF/u, "")
+		.trim();
+	return JSON.parse(text) as T;
+};
+
 const trimSlashes = (value: string) => value.replace(/^\/+|\/+$/g, "");
 
 const encodeAuth = (username: string, password: string): string => {
@@ -149,7 +158,7 @@ export async function readWebdavJson<T>(
 	if (!response.ok) {
 		throw new Error(`webdav_get_failed_${response.status}`);
 	}
-	return (await response.json()) as T;
+	return await decodeJsonBody<T>(response);
 }
 
 export async function writeWebdavJson(

@@ -175,7 +175,7 @@ export function buildSiteMetadata(
 	}
 	if (updates.request_entry !== undefined) {
 		const requestEntry = parseRequestEntry(updates.request_entry);
-		if (requestEntry.path) {
+		if (requestEntry.path || requestEntry.format) {
 			base.request_entry = requestEntry;
 		} else {
 			delete base.request_entry;

@@ -81,4 +81,20 @@ describe("site metadata manual models", () => {
 			format: null,
 		});
 	});
+
+	it("仅保存请求格式时也保留请求入口配置", () => {
+		const updated = buildSiteMetadata(null, {
+			site_type: "openai",
+			request_entry: {
+				path: null,
+				format: "openai_responses",
+			},
+		});
+		const metadata = parseSiteMetadata(updated);
+
+		expect(metadata.request_entry).toEqual({
+			path: null,
+			format: "openai_responses",
+		});
+	});
 });

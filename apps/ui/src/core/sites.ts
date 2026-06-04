@@ -355,6 +355,32 @@ export const getSiteCheckinLabel = (site: Site, today?: string) => {
 	return "签到失败";
 };
 
+const getRequestEntryFormatLabel = (format: Site["request_entry_format"]) => {
+	if (format === "openai_chat") {
+		return "OpenAI Chat";
+	}
+	if (format === "openai_responses") {
+		return "OpenAI Responses";
+	}
+	if (format === "anthropic_messages") {
+		return "Anthropic Messages";
+	}
+	if (format === "gemini_generate_content") {
+		return "Gemini Generate Content";
+	}
+	return "自动";
+};
+
+export const formatSiteRequestEntrySummary = (site: Site) => {
+	const path = String(site.request_entry_path ?? "").trim();
+	const format = site.request_entry_format ?? null;
+	if (!path && !format) {
+		return null;
+	}
+	const pathLabel = path || "默认端点";
+	return `${pathLabel} · ${getRequestEntryFormatLabel(format)}`;
+};
+
 export const filterSites = (sites: Site[], query: string) => {
 	const keyword = query.trim().toLowerCase();
 	if (!keyword) {

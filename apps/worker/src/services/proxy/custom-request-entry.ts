@@ -28,6 +28,21 @@ function resolveAutomaticRequestEntryFormat(options: {
 	return null;
 }
 
+function resolveDefaultRequestEntryPath(
+	format: RequestEntryFormat,
+): string | undefined {
+	if (format === "openai_chat") {
+		return "/v1/chat/completions";
+	}
+	if (format === "openai_responses") {
+		return "/v1/responses";
+	}
+	if (format === "anthropic_messages") {
+		return "/v1/messages";
+	}
+	return undefined;
+}
+
 export function applyCustomRequestEntry(options: {
 	entry?: RequestEntry | null;
 	downstreamProvider?: ProviderType;
@@ -42,7 +57,7 @@ export function applyCustomRequestEntry(options: {
 	| null
 	| undefined {
 	const entry = options.entry;
-	if (!entry?.path) {
+	if (!entry?.path && !entry?.format) {
 		return undefined;
 	}
 	const downstreamProvider = options.downstreamProvider ?? "openai";
@@ -80,12 +95,21 @@ export function applyCustomRequestEntry(options: {
 	const requestEntryFormatToPersist = entry.format
 		? undefined
 		: effectiveFormat;
-	if (entry.path.startsWith("http://") || entry.path.startsWith("https://")) {
+	const resolvedPath =
+		entry.path ?? resolveDefaultRequestEntryPath(effectiveFormat);
+	if (
+		resolvedPath &&
+		(resolvedPath.startsWith("http://") || resolvedPath.startsWith("https://"))
+	) {
 		return {
-			absoluteUrl: entry.path,
+			absoluteUrl: resolvedPath,
 			upstreamProvider,
 			requestEntryFormatToPersist,
 		};
 	}
-	return { path: entry.path, upstreamProvider, requestEntryFormatToPersist };
+	return {
+		path: resolvedPath,
+		upstreamProvider,
+		requestEntryFormatToPersist,
+	};
 }

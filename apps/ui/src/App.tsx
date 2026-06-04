@@ -1845,7 +1845,6 @@ const App = () => {
 				return;
 			}
 			if (
-				siteForm.request_entry_path.trim() &&
 				siteForm.request_entry_format &&
 				!isRequestEntryFormatAllowedForSiteType(
 					siteForm.site_type,
@@ -1884,9 +1883,7 @@ const App = () => {
 					status: siteForm.status,
 					site_type: siteForm.site_type,
 					request_entry_path: siteForm.request_entry_path.trim() || null,
-					request_entry_format: siteForm.request_entry_path.trim()
-						? siteForm.request_entry_format || null
-						: null,
+					request_entry_format: siteForm.request_entry_format || null,
 					system_token: siteForm.system_token.trim(),
 					system_userid: siteForm.system_userid.trim(),
 					checkin_url: siteForm.checkin_url.trim() || null,

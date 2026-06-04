@@ -30,6 +30,7 @@ import {
 	getRefreshFailedTokenLabels,
 	getRefreshFailureDetails,
 	getRefreshSuccessfulTokenLabels,
+	formatSiteRequestEntrySummary,
 	getSuggestedActionLabel,
 	getSiteTypeLabel,
 	getVerificationFailedTokenIssues,
@@ -2357,6 +2358,7 @@ export const ChannelsView = ({
 								);
 								const togglePending = isActionPending(`site:toggle:${site.id}`);
 								const deletePending = isActionPending(`site:delete:${site.id}`);
+								const requestEntrySummary = formatSiteRequestEntrySummary(site);
 								return (
 									<Card
 										class={`p-4 ${
@@ -2374,6 +2376,11 @@ export const ChannelsView = ({
 												<p class="truncate text-xs text-[color:var(--app-ink-muted)]">
 													{site.base_url}
 												</p>
+												{requestEntrySummary && (
+													<p class="mt-1 truncate text-[11px] text-[color:var(--app-ink-muted)]">
+														请求入口：{requestEntrySummary}
+													</p>
+												)}
 												{site.verification && (
 													<p class="mt-1 truncate text-[11px] text-[color:var(--app-ink-muted)]">
 														最近验证：
@@ -2577,6 +2584,8 @@ export const ChannelsView = ({
 									const deletePending = isActionPending(
 										`site:delete:${site.id}`,
 									);
+									const requestEntrySummary =
+										formatSiteRequestEntrySummary(site);
 									return (
 										<div
 											class={`app-list-row grid items-center gap-3 px-4 py-4 text-sm ${
@@ -2598,6 +2607,11 @@ export const ChannelsView = ({
 													>
 														{site.base_url}
 													</span>
+													{requestEntrySummary && (
+														<span class="truncate text-[11px] text-[color:var(--app-ink-muted)]">
+															请求入口：{requestEntrySummary}
+														</span>
+													)}
 													{site.verification && (
 														<span class="truncate text-[11px] text-[color:var(--app-ink-muted)]">
 															最近验证：

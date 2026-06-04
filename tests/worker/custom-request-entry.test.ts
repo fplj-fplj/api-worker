@@ -102,4 +102,20 @@ describe("custom request entry", () => {
 			upstreamProvider: "gemini",
 		});
 	});
+
+	it("仅配置 OpenAI Responses 请求格式时会落到默认端点", () => {
+		expect(
+			applyCustomRequestEntry({
+				entry: {
+					path: null,
+					format: "openai_responses",
+				},
+				downstreamProvider: "openai",
+				endpointType: "responses",
+			}),
+		).toEqual({
+			path: "/v1/responses",
+			upstreamProvider: "openai",
+		});
+	});
 });

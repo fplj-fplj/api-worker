@@ -626,7 +626,9 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 									response.status === 200 &&
 									meta.requestEntryFormatToPersist
 								) {
-									persistAutomaticRequestEntryFormat({
+									await persistAutomaticRequestEntryFormat({
+										db: c.env.DB,
+										kvHot: c.env.KV_HOT,
 										channel: meta.channel,
 										path: meta.requestEntryPathToPersist,
 										format: meta.requestEntryFormatToPersist,
@@ -1530,7 +1532,9 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 						response.status === 200 &&
 						preparedAttempt.requestEntryFormatToPersist
 					) {
-						persistAutomaticRequestEntryFormat({
+						await persistAutomaticRequestEntryFormat({
+							db: c.env.DB,
+							kvHot: c.env.KV_HOT,
 							channel,
 							path: preparedAttempt.requestEntryPathToPersist,
 							format: preparedAttempt.requestEntryFormatToPersist,
