@@ -146,20 +146,37 @@ fn parse_sse_payload(line: &str) -> Option<&str> {
     Some(payload)
 }
 
+fn openai_part_is_hidden(obj: &Map<String, Value>) -> bool {
+    matches!(
+        obj.get("type").and_then(|v| v.as_str()),
+        Some("reasoning" | "reasoning_text" | "thinking")
+    ) || obj.get("reasoning").and_then(|v| v.as_bool()) == Some(true)
+        || obj.get("thought").and_then(|v| v.as_bool()) == Some(true)
+}
+
+fn openai_part_text(part: &Value) -> String {
+    match part {
+        Value::String(s) => s.to_string(),
+        Value::Object(obj) => {
+            if openai_part_is_hidden(obj) {
+                String::new()
+            } else {
+                obj.get("text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string()
+            }
+        }
+        _ => String::new(),
+    }
+}
+
 fn openai_content_to_text(content: Option<&Value>) -> String {
     match content {
         Some(Value::String(s)) => s.to_string(),
         Some(Value::Array(items)) => items
             .iter()
-            .map(|part| match part {
-                Value::String(s) => s.to_string(),
-                Value::Object(obj) => obj
-                    .get("text")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string(),
-                _ => String::new(),
-            })
+            .map(openai_part_text)
             .collect::<Vec<String>>()
             .join(""),
         _ => String::new(),
@@ -205,8 +222,21 @@ fn gemini_candidate_text(payload: &Value) -> String {
         Some(parts) => parts
             .iter()
             .map(|part| {
-                part.as_object()
-                    .and_then(|o| o.get("text"))
+                let Some(obj) = part.as_object() else {
+                    return String::new();
+                };
+                if obj.get("thought").and_then(|v| v.as_bool()) == Some(true)
+                    || obj.contains_key("thoughtSignature")
+                    || obj
+                        .get("partMetadata")
+                        .and_then(|v| v.as_object())
+                        .and_then(|meta| meta.get("thought"))
+                        .and_then(|v| v.as_bool())
+                        == Some(true)
+                {
+                    return String::new();
+                }
+                obj.get("text")
                     .and_then(|v| v.as_str())
                     .unwrap_or_default()
                     .to_string()

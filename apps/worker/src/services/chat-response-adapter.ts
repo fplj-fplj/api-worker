@@ -18,6 +18,35 @@ type AdaptOptions = {
 
 type AdapterFn = (options: AdaptOptions) => Promise<Response>;
 
+function isOpenAiHiddenTextPart(record: Record<string, unknown>): boolean {
+	const type = typeof record.type === "string" ? record.type : null;
+	if (
+		type === "reasoning" ||
+		type === "reasoning_text" ||
+		type === "thinking"
+	) {
+		return true;
+	}
+	if (record.reasoning === true || record.thought === true) {
+		return true;
+	}
+	return false;
+}
+
+function readVisibleOpenAiTextPart(part: unknown): string {
+	if (typeof part === "string") {
+		return part;
+	}
+	if (!part || typeof part !== "object") {
+		return "";
+	}
+	const record = part as Record<string, unknown>;
+	if (isOpenAiHiddenTextPart(record)) {
+		return "";
+	}
+	return typeof record.text === "string" ? record.text : "";
+}
+
 function openAiContentToText(content: unknown): string {
 	if (typeof content === "string") {
 		return content;
@@ -25,20 +54,7 @@ function openAiContentToText(content: unknown): string {
 	if (!Array.isArray(content)) {
 		return "";
 	}
-	return content
-		.map((part) => {
-			if (typeof part === "string") {
-				return part;
-			}
-			if (part && typeof part === "object") {
-				const record = part as Record<string, unknown>;
-				if (typeof record.text === "string") {
-					return record.text;
-				}
-			}
-			return "";
-		})
-		.join("");
+	return content.map((part) => readVisibleOpenAiTextPart(part)).join("");
 }
 
 function anthropicContentToText(content: unknown): string {
@@ -72,7 +88,18 @@ function geminiCandidateText(payload: Record<string, unknown>): string {
 		? (content.parts as Record<string, unknown>[])
 		: [];
 	return parts
-		.map((part) => (typeof part.text === "string" ? part.text : ""))
+		.map((part) => {
+			if (
+				part.thought === true ||
+				part.thoughtSignature !== undefined ||
+				(part.partMetadata &&
+					typeof part.partMetadata === "object" &&
+					(part.partMetadata as Record<string, unknown>).thought === true)
+			) {
+				return "";
+			}
+			return typeof part.text === "string" ? part.text : "";
+		})
 		.join("");
 }
 
@@ -277,24 +304,35 @@ function extractOpenAiResponseUsage(payload: Record<string, unknown>): {
 }
 
 function extractOpenAiResponseText(payload: Record<string, unknown>): string {
-	if (typeof payload.output_text === "string") {
-		return payload.output_text;
-	}
 	const output = Array.isArray(payload.output)
 		? (payload.output as Record<string, unknown>[])
 		: [];
-	const chunks: string[] = [];
-	for (const item of output) {
-		const content = Array.isArray(item.content)
-			? (item.content as Record<string, unknown>[])
-			: [];
-		for (const part of content) {
-			if (typeof part.text === "string") {
-				chunks.push(part.text);
+	if (output.length > 0) {
+		const chunks: string[] = [];
+		for (const item of output) {
+			if (
+				item.type === "reasoning" ||
+				item.type === "thinking" ||
+				item.type === "reasoning_summary"
+			) {
+				continue;
+			}
+			const content = Array.isArray(item.content)
+				? (item.content as Record<string, unknown>[])
+				: [];
+			for (const part of content) {
+				const text = readVisibleOpenAiTextPart(part);
+				if (text) {
+					chunks.push(text);
+				}
 			}
 		}
+		return chunks.join("");
 	}
-	return chunks.join("");
+	if (typeof payload.output_text === "string") {
+		return payload.output_text;
+	}
+	return "";
 }
 
 function writeGeminiChunk(

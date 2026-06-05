@@ -35,6 +35,44 @@ function normalizeKnownModel(value: string | null | undefined): string | null {
 	return deriveCanonicalModel(value);
 }
 
+function scoreAttemptModelCandidate(
+	value: string,
+	canonicalModel: string,
+): number {
+	const normalized = normalizeAttemptModel(value);
+	if (!normalized) {
+		return Number.NEGATIVE_INFINITY;
+	}
+	const lastSegment =
+		normalized.split("/").filter(Boolean).at(-1) ?? normalized;
+	const derivedCanonical = deriveCanonicalModel(normalized);
+	const hasProviderPrefix = normalized.includes("/");
+	const isKnownFamilyAlias =
+		lastSegment === `${canonicalModel}-it` ||
+		lastSegment === `${canonicalModel}-instruct`;
+	const isExactCanonicalSegment = lastSegment === canonicalModel;
+	let score = 0;
+	if (derivedCanonical === canonicalModel) {
+		score += 100;
+	}
+	if (isKnownFamilyAlias) {
+		score += 40;
+	}
+	if (hasProviderPrefix) {
+		score += 20;
+	}
+	if (isExactCanonicalSegment) {
+		score += 10;
+	}
+	if (
+		derivedCanonical !== canonicalModel &&
+		lastSegment.startsWith(`${canonicalModel}-`)
+	) {
+		score -= 10;
+	}
+	return score;
+}
+
 function hasExplicitModelMapping(
 	metadata: ChannelMetadata,
 	downstreamModel: string | null,
@@ -182,10 +220,14 @@ export function buildChannelAttemptModels(options: {
 		seen.add(normalized);
 		candidates.push(normalized);
 	};
+	const normalizedRequestModelRaw = normalizeAttemptModel(
+		options.requestModelRaw,
+	);
 	if (
 		options.preferRequestedModel &&
-		options.requestModelRaw &&
-		rawIds.includes(options.requestModelRaw)
+		normalizedRequestModelRaw &&
+		normalizedRequestModelRaw !== canonicalModel &&
+		rawIds.includes(normalizedRequestModelRaw)
 	) {
 		appendCandidate(options.requestModelRaw);
 	}
@@ -200,7 +242,15 @@ export function buildChannelAttemptModels(options: {
 	) {
 		appendCandidate(mappedModel);
 	}
-	for (const rawId of rawIds) {
+	const sortedRawIds = rawIds
+		.map((rawId, index) => ({
+			rawId,
+			index,
+			score: scoreAttemptModelCandidate(rawId, canonicalModel),
+		}))
+		.sort((left, right) => right.score - left.score || left.index - right.index)
+		.map((item) => item.rawId);
+	for (const rawId of sortedRawIds) {
 		appendCandidate(rawId);
 	}
 	return candidates;
@@ -218,6 +268,8 @@ export function buildChannelAttemptPlan(options: {
 	const plan: ChannelAttemptPlanItem[] = [];
 	const seen = new Set<string>();
 	for (const [channelIndex, channel] of options.ordered.entries()) {
+		// Channel filtering only answers "can this channel serve the model family?".
+		// The concrete upstream raw model name is fixed here for each attempt.
 		const metadata = parseChannelMetadata(channel.metadata_json);
 		const models = buildChannelAttemptModels({
 			channel,

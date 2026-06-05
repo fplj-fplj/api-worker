@@ -176,4 +176,44 @@ describe("channel routing with effective models", () => {
 			"nvidia/llama-3.1-nemotron-51b-instruct",
 		]);
 	});
+
+	it("渠道存在标准上游名时优先把裸 canonical 请求转换成该渠道模型名", () => {
+		const ordered = [
+			buildChannel({
+				id: "channel-a",
+				name: "NVIDIA",
+				metadata_json: JSON.stringify({
+					site_type: "openai",
+				}),
+				models_json: JSON.stringify([
+					{ id: "gemma-4-31b-t" },
+					{ id: "google/gemma-4-31b-it" },
+					{ id: "gemma-4-31b" },
+				]),
+			}),
+		];
+
+		const plan = buildChannelAttemptPlan({
+			ordered,
+			downstreamModel: "gemma-4-31b",
+			requestModelRaw: "gemma-4-31b",
+			canonicalAliases: [
+				"gemma-4-31b",
+				"gemma-4-31b-t",
+				"google/gemma-4-31b-it",
+			],
+			downstreamProvider: "openai",
+			endpointType: "chat",
+			maxAttempts: 6,
+		});
+
+		expect(plan.map((item) => item.model)).toEqual([
+			"google/gemma-4-31b-it",
+			"google/gemma-4-31b-it",
+			"gemma-4-31b",
+			"gemma-4-31b",
+			"gemma-4-31b-t",
+			"gemma-4-31b-t",
+		]);
+	});
 });
