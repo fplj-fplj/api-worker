@@ -15,7 +15,7 @@ export async function persistAutomaticRequestEntryFormat(options: {
 	path?: string | null;
 	format?: RequestEntryFormat | null;
 }): Promise<void> {
-	if (!options.path || !options.format) {
+	if (!options.format) {
 		return;
 	}
 	const metadataJson = buildSiteMetadata(options.channel.metadata_json, {

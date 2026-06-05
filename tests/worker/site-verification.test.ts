@@ -27,7 +27,10 @@ vi.mock("../../apps/worker/src/services/providers/chat-request", () => ({
 	},
 }));
 
-import { verifySiteChannel } from "../../apps/worker/src/services/site-verification";
+import {
+	persistSiteVerificationResult,
+	verifySiteChannel,
+} from "../../apps/worker/src/services/site-verification";
 
 const originalFetch = globalThis.fetch;
 
@@ -132,5 +135,77 @@ describe("site verification", () => {
 			{ path: "/v1/chat/completions", model: "gpt-4.1" },
 			{ path: "/v1/responses", model: "gpt-4.1" },
 		]);
+	});
+
+	it("验证成功后会把自动请求格式持久化到站点元数据", async () => {
+		const calls: Array<{ sql: string; bindings: unknown[] }> = [];
+		const db = {
+			prepare(sql: string) {
+				return {
+					bind(...bindings: unknown[]) {
+						calls.push({ sql, bindings });
+						return {
+							async first() {
+								return { status: "active" };
+							},
+							async all() {
+								return { results: [] };
+							},
+							async run() {
+								return {};
+							},
+						};
+					},
+				};
+			},
+			async batch() {
+				return [];
+			},
+		};
+
+		await persistSiteVerificationResult({
+			db: db as never,
+			channel: createOpenAiChannel(["gpt-4.1"]) as never,
+			tokens: [],
+			result: {
+				site_id: "ch_test",
+				site_name: "test-openai",
+				mode: "service",
+				verdict: "serving",
+				message: "ok",
+				suggested_action: "none",
+				stages: {
+					connectivity: { status: "pass", code: "reachable", message: "ok" },
+					capability: { status: "pass", code: "models_listed", message: "ok" },
+					service: {
+						status: "pass",
+						code: "service_request_succeeded",
+						message: "ok",
+					},
+					recovery: { status: "skip", code: "not_disabled", message: "ok" },
+				},
+				selected_model: "gpt-4.1",
+				selected_token: null,
+				discovered_models: [],
+				token_results: [],
+				token_summary: null,
+				trace: {
+					latency_ms: 12,
+					upstream_status: 200,
+					request_entry_format: "openai_responses",
+				},
+				checked_at: "2026-06-05T00:00:00.000Z",
+			} as never,
+		});
+
+		const metadataUpdate = calls.find((call) =>
+			call.sql.includes("UPDATE channels SET metadata_json"),
+		);
+		expect(metadataUpdate).toBeTruthy();
+		const metadata = JSON.parse(String(metadataUpdate?.bindings[0] ?? "{}"));
+		expect(metadata.request_entry).toEqual({
+			path: null,
+			format: "openai_responses",
+		});
 	});
 });

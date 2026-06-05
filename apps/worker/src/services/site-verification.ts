@@ -9,6 +9,7 @@ import { extractModelIds, modelsToJson } from "./channel-models";
 import { parseChannelMetadata, resolveProvider } from "./channel-metadata";
 import { collectVerifiedTokenModelUpdates } from "./site-verification-token-models";
 import { inspectSuccessfulResponse } from "./successful-response";
+import { buildSiteMetadata, type RequestEntryFormat } from "./site-metadata";
 import {
 	type ChannelTokenTestItem,
 	summarizeChannelTokenFailures,
@@ -111,6 +112,8 @@ export type SiteVerificationResult = {
 		upstream_status?: number;
 		detail_code?: string;
 		detail_message?: string;
+		request_entry_format?: RequestEntryFormat | null;
+		request_entry_path?: string | null;
 	};
 	checked_at: string;
 };
@@ -838,6 +841,10 @@ export async function verifySiteChannel(options: {
 										.filter(Boolean)
 										.join(" | "),
 								) ?? `HTTP ${response.status}`),
+						request_entry_format: response.ok ? requestFormat : undefined,
+						request_entry_path: response.ok
+							? metadata.request_entry.path
+							: undefined,
 					};
 					if (response.status === 401 || response.status === 403) {
 						connectivity.status = "fail";
@@ -981,14 +988,22 @@ export async function persistSiteVerificationResult(options: {
 		channel.metadata_json,
 		buildSummarySnapshot(result),
 	);
+	const requestEntryMetadataJson = result.trace.request_entry_format
+		? buildSiteMetadata(summaryMetadataJson, {
+				request_entry: {
+					path: result.trace.request_entry_path,
+					format: result.trace.request_entry_format,
+				},
+			})
+		: summaryMetadataJson;
 	const metadataJson =
 		result.discovered_models.length > 0
 			? stageNewlyDiscoveredModels(
-					summaryMetadataJson,
+					requestEntryMetadataJson,
 					extractModelIds(channel),
 					result.discovered_models,
 				)
-			: summaryMetadataJson;
+			: requestEntryMetadataJson;
 	const updatedAt = nowIso();
 	await db
 		.prepare(

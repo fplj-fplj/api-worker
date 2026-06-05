@@ -45,4 +45,44 @@ describe("request entry persistence", () => {
 		});
 		expect(metadata.manual_include_models).toEqual(["manual"]);
 	});
+
+	it("默认端点成功后也会仅回写明确请求格式", async () => {
+		const calls: Array<{ sql: string; bindings: unknown[] }> = [];
+		const db = {
+			prepare(sql: string) {
+				return {
+					bind(...bindings: unknown[]) {
+						calls.push({ sql, bindings });
+						return {
+							async run() {
+								return {};
+							},
+						};
+					},
+				};
+			},
+		};
+
+		await persistAutomaticRequestEntryFormat({
+			db: db as never,
+			channel: {
+				id: "ch_test",
+				metadata_json: JSON.stringify({
+					site_type: "openai",
+					request_entry: {
+						path: null,
+						format: null,
+					},
+				}),
+			},
+			format: "openai_responses",
+		});
+
+		expect(calls).toHaveLength(1);
+		const metadata = JSON.parse(String(calls[0].bindings[0]));
+		expect(metadata.request_entry).toEqual({
+			path: null,
+			format: "openai_responses",
+		});
+	});
 });
