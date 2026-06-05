@@ -72,6 +72,7 @@ import {
 } from "../../../worker/src/services/proxy/attempt-evaluator";
 import { prepareAttemptRequest } from "../../../worker/src/services/proxy/attempt-request-builder";
 import { runProxyAttempts } from "../../../worker/src/services/proxy/attempt-runner";
+import type { RequestEntryFormat } from "../../../worker/src/services/site-metadata";
 import {
 	type AttemptBindingPolicy,
 	type AttemptBindingState,
@@ -581,6 +582,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 				requestModelRaw,
 				upstreamModelRaw: null,
 				requestPath,
+				requestEntryFormat: null,
 				totalTokens: 0,
 				latencyMs,
 				firstTokenLatencyMs: isStream ? null : latencyMs,
@@ -616,6 +618,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 		canonicalModel?: string | null;
 		requestModelRaw?: string | null;
 		upstreamModelRaw?: string | null;
+		requestEntryFormat?: RequestEntryFormat | null;
 	}) => {
 		scheduleUsageEvent({
 			type: "usage",
@@ -632,6 +635,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 				requestModelRaw: options.requestModelRaw ?? requestModelRaw ?? null,
 				upstreamModelRaw: options.upstreamModelRaw ?? null,
 				requestPath: options.requestPath,
+				requestEntryFormat: options.requestEntryFormat ?? null,
 				totalTokens: options.usage?.totalTokens ?? null,
 				promptTokens: options.usage?.promptTokens ?? null,
 				completionTokens: options.usage?.completionTokens ?? null,
@@ -664,6 +668,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 		canonicalModel?: string | null;
 		requestModelRaw?: string | null;
 		upstreamModelRaw?: string | null;
+		requestEntryFormat?: RequestEntryFormat | null;
 		status: "ok" | "warn" | "error";
 		errorClass?: string | null;
 		errorCode?: string | null;
@@ -692,6 +697,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 					options.canonicalModel ?? canonicalModel ?? downstreamModel ?? null,
 				requestModelRaw: options.requestModelRaw ?? requestModelRaw ?? null,
 				upstreamModelRaw: options.upstreamModelRaw ?? options.model ?? null,
+				requestEntryFormat: options.requestEntryFormat ?? null,
 				status: options.status,
 				errorClass: options.errorClass ?? null,
 				errorCode: options.errorCode ?? null,
@@ -1147,6 +1153,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 	let selectedUpstreamModel: string | null = null;
 	let selectedCanonicalModel: string | null = null;
 	let selectedRequestPath = targetPath;
+	let selectedRequestEntryFormat: RequestEntryFormat | null = null;
 	let selectedImmediateUsage: NormalizedUsage | null = null;
 	let selectedImmediateUsageSource: "json" | "header" | "none" = "none";
 	let selectedHasUsageSignal = false;
@@ -1193,6 +1200,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 			canonicalModel: selectedCanonicalModel ?? canonicalModel,
 			requestModelRaw,
 			upstreamModelRaw: selectedUpstreamModel,
+			requestEntryFormat: selectedRequestEntryFormat,
 		});
 	};
 	const recordSelectedClientDisconnect = (options?: {
@@ -1236,6 +1244,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 			canonicalModel: selectedCanonicalModel ?? canonicalModel,
 			requestModelRaw,
 			upstreamModelRaw: selectedUpstreamModel,
+			requestEntryFormat: selectedRequestEntryFormat,
 		});
 		selectedStreamUsageRecorded = true;
 		if (
@@ -1251,6 +1260,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 				canonicalModel: selectedCanonicalModel ?? canonicalModel,
 				requestModelRaw,
 				upstreamModelRaw: selectedUpstreamModel,
+				requestEntryFormat: selectedRequestEntryFormat,
 				status: "warn",
 				errorClass: "downstream_response",
 				errorCode: DOWNSTREAM_CLIENT_ABORT_ERROR_CODE,
@@ -1502,6 +1512,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 			selectedUpstreamModel,
 			selectedCanonicalModel,
 			selectedRequestPath,
+			selectedRequestEntryFormat,
 			selectedImmediateUsage,
 			selectedImmediateUsageSource,
 			selectedHasUsageSignal,
@@ -1628,6 +1639,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 	selectedUpstreamModel = attemptRun.selectedUpstreamModel;
 	selectedCanonicalModel = attemptRun.selectedCanonicalModel;
 	selectedRequestPath = attemptRun.selectedRequestPath;
+	selectedRequestEntryFormat = attemptRun.selectedRequestEntryFormat;
 	selectedImmediateUsage = attemptRun.selectedImmediateUsage;
 	selectedImmediateUsageSource = attemptRun.selectedImmediateUsageSource;
 	selectedHasUsageSignal = attemptRun.selectedHasUsageSignal;
@@ -1680,6 +1692,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 		streamUsageOptions,
 		streamUsageParseTimeoutMs,
 		selectedRequestPath,
+		selectedRequestEntryFormat,
 		markStreamMetaPartial,
 		recordAttemptLog,
 		selectedAttemptIndex,

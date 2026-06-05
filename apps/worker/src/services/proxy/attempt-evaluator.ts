@@ -6,6 +6,7 @@ import {
 } from "../provider-transform";
 import type { CallTokenSelection } from "../channel-attemptability";
 import type { ChannelRecord } from "../channels";
+import type { RequestEntryFormat } from "../site-metadata";
 import type { NormalizedUsage, StreamUsage } from "../../utils/usage";
 import {
 	formatUsageErrorMessage,
@@ -21,6 +22,7 @@ export type SelectedAttemptState = {
 	selectedUpstreamModel: string | null;
 	selectedCanonicalModel: string | null;
 	selectedRequestPath: string;
+	selectedRequestEntryFormat: RequestEntryFormat | null;
 	selectedImmediateUsage: NormalizedUsage | null;
 	selectedImmediateUsageSource: "json" | "header" | "none";
 	selectedHasUsageSignal: boolean;
@@ -38,6 +40,7 @@ export function buildSelectedAttemptState(options: {
 	channel: ChannelRecord;
 	upstreamProvider: ProviderType;
 	responsePath: string;
+	requestEntryFormat: RequestEntryFormat | null;
 	fallbackEndpointType: EndpointType;
 	upstreamModel: string | null;
 	canonicalModel: string | null;
@@ -68,6 +71,7 @@ export function buildSelectedAttemptState(options: {
 		selectedUpstreamModel: options.upstreamModel,
 		selectedCanonicalModel: options.canonicalModel,
 		selectedRequestPath: options.responsePath,
+		selectedRequestEntryFormat: options.requestEntryFormat,
 		selectedImmediateUsage: options.immediateUsage,
 		selectedImmediateUsageSource: options.immediateUsageSource,
 		selectedHasUsageSignal: options.hasAnyUsageSignal,

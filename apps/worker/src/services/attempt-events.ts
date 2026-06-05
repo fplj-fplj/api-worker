@@ -1,4 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import type { RequestEntryFormat } from "./site-metadata";
 
 export type AttemptLogInput = {
 	traceId: string;
@@ -9,6 +10,7 @@ export type AttemptLogInput = {
 	canonicalModel?: string | null;
 	requestModelRaw?: string | null;
 	upstreamModelRaw?: string | null;
+	requestEntryFormat?: RequestEntryFormat | null;
 	status: "ok" | "warn" | "error";
 	errorClass: string | null;
 	errorCode: string | null;
@@ -34,6 +36,7 @@ export type AttemptEventRecord = {
 	canonical_model: string | null;
 	request_model_raw: string | null;
 	upstream_model_raw: string | null;
+	request_entry_format: string | null;
 	status: string;
 	error_class: string | null;
 	error_code: string | null;
@@ -54,7 +57,7 @@ export async function insertAttemptEvent(
 	const createdAt = input.createdAt ?? new Date().toISOString();
 	await db
 		.prepare(
-			"INSERT INTO attempt_events (id, trace_id, attempt_index, channel_id, provider, model, canonical_model, request_model_raw, upstream_model_raw, status, error_class, error_code, http_status, latency_ms, upstream_request_id, started_at, ended_at, raw_size_bytes, raw_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO attempt_events (id, trace_id, attempt_index, channel_id, provider, model, canonical_model, request_model_raw, upstream_model_raw, request_entry_format, status, error_class, error_code, http_status, latency_ms, upstream_request_id, started_at, ended_at, raw_size_bytes, raw_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			crypto.randomUUID(),
@@ -66,6 +69,7 @@ export async function insertAttemptEvent(
 			input.canonicalModel ?? null,
 			input.requestModelRaw ?? null,
 			input.upstreamModelRaw ?? null,
+			input.requestEntryFormat ?? null,
 			input.status,
 			input.errorClass ?? null,
 			input.errorCode ?? null,

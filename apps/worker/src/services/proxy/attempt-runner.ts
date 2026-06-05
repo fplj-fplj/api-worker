@@ -95,6 +95,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 		selectedUpstreamModel,
 		selectedCanonicalModel,
 		selectedRequestPath,
+		selectedRequestEntryFormat,
 		selectedImmediateUsage,
 		selectedImmediateUsageSource,
 		selectedHasUsageSignal,
@@ -125,6 +126,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 		selectedUpstreamModel,
 		selectedCanonicalModel,
 		selectedRequestPath,
+		selectedRequestEntryFormat,
 		selectedImmediateUsage,
 		selectedImmediateUsageSource,
 		selectedHasUsageSignal,
@@ -184,6 +186,8 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 			if (!preparedAttempt) {
 				continue;
 			}
+			const requestEntryFormatToPersist =
+				preparedAttempt.requestEntryFormatToPersist ?? null;
 			dispatchAttempts.push({
 				channelId: channel.id,
 				method: c.req.method,
@@ -197,8 +201,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 				streamUsage: streamUsageOptions,
 				streamOptionsInjected: preparedAttempt.streamOptionsInjected,
 				strippedBodyText: preparedAttempt.strippedBodyText,
-				requestEntryFormatToPersist:
-					preparedAttempt.requestEntryFormatToPersist,
+				requestEntryFormatToPersist: requestEntryFormatToPersist,
 				requestEntryPathToPersist: preparedAttempt.requestEntryPathToPersist,
 			});
 			dispatchAttemptMeta.push({
@@ -214,8 +217,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 				target: preparedAttempt.target,
 				fallbackTarget: preparedAttempt.fallbackTarget,
 				requestHeaders: new Headers(preparedAttempt.headers),
-				requestEntryFormatToPersist:
-					preparedAttempt.requestEntryFormatToPersist,
+				requestEntryFormatToPersist: requestEntryFormatToPersist,
 				requestEntryPathToPersist: preparedAttempt.requestEntryPathToPersist,
 			});
 		}
@@ -398,6 +400,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 								canonicalModel: meta.canonicalModel ?? canonicalModel,
 								requestModelRaw: meta.requestModelRaw ?? requestModelRaw,
 								upstreamModelRaw: meta.upstreamModel ?? null,
+								requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 							});
 							recordAttemptLog({
 								attemptIndex: attemptNumber,
@@ -407,6 +410,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 								canonicalModel: meta.canonicalModel ?? canonicalModel,
 								requestModelRaw: meta.requestModelRaw ?? requestModelRaw,
 								upstreamModelRaw: meta.upstreamModel ?? null,
+								requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 								status: "error",
 								errorClass: "upstream_response",
 								errorCode: abnormalResponse.errorCode,
@@ -498,6 +502,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 									canonicalModel: meta.canonicalModel ?? canonicalModel,
 									requestModelRaw: meta.requestModelRaw ?? requestModelRaw,
 									upstreamModelRaw: meta.upstreamModel ?? null,
+									requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 								});
 								recordAttemptLog({
 									attemptIndex: attemptNumber,
@@ -507,6 +512,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 									canonicalModel: meta.canonicalModel ?? canonicalModel,
 									requestModelRaw: meta.requestModelRaw ?? requestModelRaw,
 									upstreamModelRaw: meta.upstreamModel ?? null,
+									requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 									status: "error",
 									errorClass: "usage_finalize",
 									errorCode: usageMissingCode,
@@ -578,6 +584,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 									canonicalModel: meta.canonicalModel ?? canonicalModel,
 									requestModelRaw: meta.requestModelRaw ?? requestModelRaw,
 									upstreamModelRaw: meta.upstreamModel ?? null,
+									requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 								});
 								recordAttemptLog({
 									attemptIndex: attemptNumber,
@@ -587,6 +594,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 									canonicalModel: meta.canonicalModel ?? canonicalModel,
 									requestModelRaw: meta.requestModelRaw ?? requestModelRaw,
 									upstreamModelRaw: meta.upstreamModel ?? null,
+									requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 									status: "error",
 									errorClass: "usage_finalize",
 									errorCode: zeroCompletion.errorCode,
@@ -632,6 +640,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 									canonicalModel: meta.canonicalModel ?? canonicalModel,
 									requestModelRaw: meta.requestModelRaw ?? requestModelRaw,
 									upstreamModelRaw: meta.upstreamModel ?? null,
+									requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 									status: "ok",
 									httpStatus: response.status,
 									latencyMs: attemptLatencyMs,
@@ -643,6 +652,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 									channel: meta.channel,
 									upstreamProvider: meta.upstreamProvider,
 									responsePath,
+									requestEntryFormat: meta.requestEntryFormatToPersist ?? null,
 									fallbackEndpointType: endpointType,
 									upstreamModel: meta.upstreamModel,
 									canonicalModel: meta.canonicalModel ?? canonicalModel,
@@ -666,6 +676,8 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 								selectedCanonicalModel = selectedState.selectedCanonicalModel;
 								selectedResponse = response;
 								selectedRequestPath = selectedState.selectedRequestPath;
+								selectedRequestEntryFormat =
+									selectedState.selectedRequestEntryFormat;
 								selectedImmediateUsage = selectedState.selectedImmediateUsage;
 								selectedImmediateUsageSource =
 									selectedState.selectedImmediateUsageSource;
@@ -880,6 +892,8 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 			const upstreamProvider = preparedAttempt.upstreamProvider as any;
 			const upstreamModel = preparedAttempt.upstreamModel;
 			const recordModel = preparedAttempt.recordModel;
+			const requestEntryFormatToPersist =
+				preparedAttempt.requestEntryFormatToPersist ?? null;
 			const tokenSelection = preparedAttempt.tokenSelection;
 			const headers = preparedAttempt.headers;
 			const upstreamRequestPath = preparedAttempt.responsePath;
@@ -963,6 +977,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 						canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 						requestModelRaw,
 						upstreamModelRaw: upstreamModel ?? null,
+						requestEntryFormat: requestEntryFormatToPersist,
 					});
 					recordAttemptLog({
 						attemptIndex: attemptNumber,
@@ -972,6 +987,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 						canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 						requestModelRaw,
 						upstreamModelRaw: upstreamModel ?? null,
+						requestEntryFormat: requestEntryFormatToPersist,
 						status: "error",
 						errorClass:
 							attemptResult.kind === "attempt_worker_error"
@@ -1105,6 +1121,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 								canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 								requestModelRaw,
 								upstreamModelRaw: upstreamModel ?? null,
+								requestEntryFormat: requestEntryFormatToPersist,
 							});
 							recordAttemptLog({
 								attemptIndex: attemptNumber,
@@ -1114,6 +1131,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 								canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 								requestModelRaw,
 								upstreamModelRaw: upstreamModel ?? null,
+								requestEntryFormat: requestEntryFormatToPersist,
 								status: "error",
 								errorClass:
 									retried.kind === "attempt_worker_error"
@@ -1274,6 +1292,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 							canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 							requestModelRaw,
 							upstreamModelRaw: upstreamModel ?? null,
+							requestEntryFormat: requestEntryFormatToPersist,
 						});
 						recordAttemptLog({
 							attemptIndex: attemptNumber,
@@ -1283,6 +1302,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 							canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 							requestModelRaw,
 							upstreamModelRaw: upstreamModel ?? null,
+							requestEntryFormat: requestEntryFormatToPersist,
 							status: "error",
 							errorClass: "upstream_response",
 							errorCode: abnormalResponse.errorCode,
@@ -1375,6 +1395,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 							canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 							requestModelRaw,
 							upstreamModelRaw: upstreamModel ?? null,
+							requestEntryFormat: requestEntryFormatToPersist,
 						});
 						recordAttemptLog({
 							attemptIndex: attemptNumber,
@@ -1384,6 +1405,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 							canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 							requestModelRaw,
 							upstreamModelRaw: upstreamModel ?? null,
+							requestEntryFormat: requestEntryFormatToPersist,
 							status: "error",
 							errorClass: "usage_finalize",
 							errorCode: usageMissingCode,
@@ -1457,6 +1479,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 							canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 							requestModelRaw,
 							upstreamModelRaw: upstreamModel ?? null,
+							requestEntryFormat: requestEntryFormatToPersist,
 						});
 						recordAttemptLog({
 							attemptIndex: attemptNumber,
@@ -1466,6 +1489,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 							canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 							requestModelRaw,
 							upstreamModelRaw: upstreamModel ?? null,
+							requestEntryFormat: requestEntryFormatToPersist,
 							status: "error",
 							errorClass: "usage_finalize",
 							errorCode: zeroCompletion.errorCode,
@@ -1513,6 +1537,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 						canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 						requestModelRaw,
 						upstreamModelRaw: upstreamModel ?? null,
+						requestEntryFormat: requestEntryFormatToPersist,
 						status: "ok",
 						httpStatus: response.status,
 						latencyMs: attemptLatencyMs,
@@ -1524,6 +1549,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 						channel,
 						upstreamProvider,
 						responsePath,
+						requestEntryFormat: requestEntryFormatToPersist,
 						fallbackEndpointType: endpointType,
 						upstreamModel,
 						canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
@@ -1544,6 +1570,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 					selectedCanonicalModel = selectedState.selectedCanonicalModel;
 					selectedResponse = response;
 					selectedRequestPath = selectedState.selectedRequestPath;
+					selectedRequestEntryFormat = selectedState.selectedRequestEntryFormat;
 					selectedImmediateUsage = selectedState.selectedImmediateUsage;
 					selectedImmediateUsageSource =
 						selectedState.selectedImmediateUsageSource;
@@ -1624,6 +1651,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 					canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 					requestModelRaw,
 					upstreamModelRaw: upstreamModel ?? null,
+					requestEntryFormat: requestEntryFormatToPersist,
 				});
 				recordAttemptLog({
 					attemptIndex: attemptNumber,
@@ -1633,6 +1661,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 					canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 					requestModelRaw,
 					upstreamModelRaw: upstreamModel ?? null,
+					requestEntryFormat: requestEntryFormatToPersist,
 					status: "error",
 					errorClass: evaluatedFailure.errorClass,
 					errorCode: evaluatedFailure.finalErrorCode,
@@ -1727,6 +1756,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 					canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 					requestModelRaw,
 					upstreamModelRaw: upstreamModel ?? null,
+					requestEntryFormat: requestEntryFormatToPersist,
 				});
 				recordAttemptLog({
 					attemptIndex: attemptNumber,
@@ -1736,6 +1766,7 @@ export async function runProxyAttempts(ctx: any): Promise<any> {
 					canonicalModel: attemptTarget.canonicalModel ?? canonicalModel,
 					requestModelRaw,
 					upstreamModelRaw: upstreamModel ?? null,
+					requestEntryFormat: requestEntryFormatToPersist,
 					status: "error",
 					errorClass: fetchFailure.isTimeout ? "timeout" : "exception",
 					errorCode: usageErrorCode,

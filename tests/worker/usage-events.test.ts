@@ -42,10 +42,10 @@ function createUsageEventDb() {
 							async run() {
 								if (sql.startsWith("INSERT INTO usage_logs")) {
 									usageRows.push({
-										billable_input_tokens: params[15],
-										charge_amount: params[16],
-										charge_status: params[18],
-										charge_source: params[19],
+										billable_input_tokens: params[16],
+										charge_amount: params[17],
+										charge_status: params[19],
+										charge_source: params[20],
 									});
 								}
 					return { success: true };

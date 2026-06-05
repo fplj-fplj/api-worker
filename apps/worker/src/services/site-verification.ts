@@ -27,6 +27,7 @@ import {
 	resolveEndpointTypeForRequestEntryFormat,
 	resolveUpstreamProviderForRequestEntryFormat,
 } from "./request-entry-attempts";
+import type { RequestEntryFormat } from "./site-metadata";
 import {
 	buildProxyErrorCodeSet,
 	resolveProxyErrorDecision,
@@ -96,6 +97,7 @@ export type SiteVerificationResult = {
 		recovery: VerificationStageResult;
 	};
 	selected_model: string | null;
+	request_entry_format: RequestEntryFormat | null;
 	selected_token: {
 		id?: string;
 		name?: string;
@@ -451,6 +453,7 @@ export async function verifySiteChannel(options: {
 	let tokenResults: ChannelTokenTestItem[] = [];
 	let selectedModel: string | null = null;
 	let selectedRequestModel: string | null = null;
+	let selectedRequestEntryFormat: RequestEntryFormat | null = null;
 	let selectedToken: VerificationToken | null = null;
 	let tokenSummary: SiteVerificationResult["token_summary"] = null;
 	let trace: SiteVerificationResult["trace"] = {};
@@ -519,6 +522,7 @@ export async function verifySiteChannel(options: {
 			suggested_action: "fix_credentials" as VerificationSuggestedAction,
 			stages: { connectivity, capability, service, recovery },
 			selected_model: null,
+			request_entry_format: null,
 			selected_token: null,
 			discovered_models: [],
 			token_results: [],
@@ -625,6 +629,7 @@ export async function verifySiteChannel(options: {
 			}),
 			stages: { connectivity, capability, service, recovery },
 			selected_model: null,
+			request_entry_format: selectedRequestEntryFormat,
 			selected_token: null,
 			discovered_models: modelSelection.all,
 			token_results: tokenResults,
@@ -686,6 +691,7 @@ export async function verifySiteChannel(options: {
 			}),
 			stages: { connectivity, capability, service, recovery },
 			selected_model: selectedModel,
+			request_entry_format: selectedRequestEntryFormat,
 			selected_token: null,
 			discovered_models: modelSelection.all,
 			token_results: tokenResults,
@@ -747,6 +753,7 @@ export async function verifySiteChannel(options: {
 					provider,
 				);
 				selectedRequestModel = requestModel;
+				selectedRequestEntryFormat = requestFormat;
 				const downstreamBody = buildVerificationProbeBody(
 					requestEndpointType,
 					selectedModel,
@@ -956,6 +963,7 @@ export async function verifySiteChannel(options: {
 		}),
 		stages: { connectivity, capability, service, recovery },
 		selected_model: selectedRequestModel ?? selectedModel,
+		request_entry_format: selectedRequestEntryFormat,
 		selected_token: {
 			id: selectedToken.id,
 			name: selectedToken.name,

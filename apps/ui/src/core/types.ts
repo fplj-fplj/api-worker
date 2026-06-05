@@ -94,6 +94,7 @@ export type SiteVerificationResult = {
 		recovery: VerificationStageResult;
 	};
 	selected_model: string | null;
+	request_entry_format?: RequestEntryFormat | null;
 	selected_token: {
 		id?: string;
 		name?: string;
@@ -186,6 +187,7 @@ export type UsageLog = {
 	canonical_model?: string | null;
 	request_model_raw?: string | null;
 	upstream_model_raw?: string | null;
+	request_entry_format?: RequestEntryFormat | null;
 	channel_id: string | null;
 	channel_name?: string | null;
 	token_id: string | null;

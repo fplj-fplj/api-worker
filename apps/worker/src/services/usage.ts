@@ -1,4 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import type { RequestEntryFormat } from "./site-metadata";
 import { nowIso } from "../utils/time";
 
 export type UsageInput = {
@@ -9,6 +10,7 @@ export type UsageInput = {
 	requestModelRaw?: string | null;
 	upstreamModelRaw?: string | null;
 	requestPath?: string | null;
+	requestEntryFormat?: RequestEntryFormat | null;
 	totalTokens?: number | null;
 	promptTokens?: number | null;
 	completionTokens?: number | null;
@@ -66,7 +68,7 @@ export async function recordUsage(
 			: String(input.reasoningEffort);
 	await db
 		.prepare(
-			"INSERT INTO usage_logs (id, token_id, channel_id, model, canonical_model, request_model_raw, upstream_model_raw, request_path, total_tokens, prompt_tokens, completion_tokens, cost, cache_read_input_tokens, cache_write_input_tokens, uncached_input_tokens, billable_input_tokens, charge_amount, charge_currency, charge_status, charge_source, charge_detail_json, latency_ms, first_token_latency_ms, stream, reasoning_effort, status, upstream_status, error_code, error_message, failure_stage, failure_reason, usage_source, error_meta_json, call_token_id, call_token_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO usage_logs (id, token_id, channel_id, model, canonical_model, request_model_raw, upstream_model_raw, request_path, request_entry_format, total_tokens, prompt_tokens, completion_tokens, cost, cache_read_input_tokens, cache_write_input_tokens, uncached_input_tokens, billable_input_tokens, charge_amount, charge_currency, charge_status, charge_source, charge_detail_json, latency_ms, first_token_latency_ms, stream, reasoning_effort, status, upstream_status, error_code, error_message, failure_stage, failure_reason, usage_source, error_meta_json, call_token_id, call_token_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		)
 		.bind(
 			id,
@@ -77,6 +79,7 @@ export async function recordUsage(
 			input.requestModelRaw ?? null,
 			input.upstreamModelRaw ?? null,
 			input.requestPath ?? null,
+			input.requestEntryFormat ?? null,
 			input.totalTokens ?? null,
 			input.promptTokens ?? null,
 			input.completionTokens ?? null,

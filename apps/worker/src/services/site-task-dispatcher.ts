@@ -1122,6 +1122,7 @@ export async function recoverDisabledChannelsViaWorker(
 							},
 						},
 						selected_model: null,
+						request_entry_format: null,
 						selected_token: null,
 						discovered_models: [],
 						token_results: [],

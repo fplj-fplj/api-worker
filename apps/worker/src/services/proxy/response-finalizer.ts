@@ -147,6 +147,7 @@ export async function finalizeSelectedResponse(ctx: any): Promise<Response> {
 		streamUsageOptions,
 		streamUsageParseTimeoutMs,
 		selectedRequestPath,
+		selectedRequestEntryFormat,
 		markStreamMetaPartial,
 		recordAttemptLog,
 		selectedAttemptIndex,
@@ -315,6 +316,7 @@ export async function finalizeSelectedResponse(ctx: any): Promise<Response> {
 				canonicalModel: selectedCanonicalModel ?? downstreamModel,
 				requestModelRaw,
 				upstreamModelRaw: selectedUpstreamModel,
+				requestEntryFormat: selectedRequestEntryFormat,
 				status: "warn",
 				errorClass: "usage_observe",
 				errorCode: usageWarning.code,
@@ -460,6 +462,7 @@ export async function finalizeSelectedResponse(ctx: any): Promise<Response> {
 				canonicalModel: selectedCanonicalModel ?? downstreamModel,
 				requestModelRaw,
 				upstreamModelRaw: selectedUpstreamModel,
+				requestEntryFormat: selectedRequestEntryFormat,
 			});
 			return buildDirectErrorResponse(
 				selectedResponse.status,
@@ -479,6 +482,7 @@ export async function finalizeSelectedResponse(ctx: any): Promise<Response> {
 			canonicalModel: selectedCanonicalModel ?? downstreamModel,
 			requestModelRaw,
 			upstreamModelRaw: selectedUpstreamModel,
+			requestEntryFormat: selectedRequestEntryFormat,
 		});
 	}
 
@@ -552,6 +556,7 @@ export async function finalizeSelectedResponse(ctx: any): Promise<Response> {
 						canonicalModel: selectedCanonicalModel ?? downstreamModel,
 						requestModelRaw,
 						upstreamModelRaw: selectedUpstreamModel,
+						requestEntryFormat: selectedRequestEntryFormat,
 						status: "error",
 						errorClass: "downstream_response",
 						errorCode: "downstream_stream_failed",

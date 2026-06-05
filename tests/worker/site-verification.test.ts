@@ -102,6 +102,7 @@ describe("site verification", () => {
 		});
 
 		expect(result.verdict).toBe("serving");
+		expect(result.request_entry_format).toBe("openai_chat");
 		expect(postCalls).toEqual([
 			{ path: "/v1/responses", model: "gpt-4.1" },
 			{ path: "/v1/chat/completions", model: "gpt-4.1" },
@@ -129,6 +130,7 @@ describe("site verification", () => {
 		});
 
 		expect(result.verdict).toBe("serving");
+		expect(result.request_entry_format).toBe("openai_responses");
 		expect(providerTransformMocks.normalizeChatRequestMock).toHaveBeenCalledWith(
 			"openai",
 			"responses",

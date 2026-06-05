@@ -4,6 +4,7 @@ import {
 	supportsSiteCheckin,
 } from "../../../shared-core/src";
 import type {
+	RequestEntryFormat,
 	Site,
 	SiteChannelRefreshItem,
 	SiteVerificationBatchSummary,
@@ -356,9 +357,8 @@ export const getSiteCheckinLabel = (site: Site, today?: string) => {
 	return "签到失败";
 };
 
-const getRequestEntryFormatLabel = (format: Site["request_entry_format"]) => {
-	return format ? getSharedRequestEntryFormatLabel(format) : "自动";
-};
+export const getRequestEntryFormatLabel = (format: RequestEntryFormat) =>
+	getSharedRequestEntryFormatLabel(format);
 
 export const formatSiteRequestEntrySummary = (site: Site) => {
 	const path = String(site.request_entry_path ?? "").trim();
@@ -367,7 +367,7 @@ export const formatSiteRequestEntrySummary = (site: Site) => {
 		return null;
 	}
 	const pathLabel = path || "默认端点";
-	return `${pathLabel} · ${getRequestEntryFormatLabel(format)}`;
+	return `${pathLabel} · ${format ? getRequestEntryFormatLabel(format) : "自动"}`;
 };
 
 export const filterSites = (sites: Site[], query: string) => {

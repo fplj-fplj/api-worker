@@ -35,6 +35,7 @@ import {
 	filterSites,
 	getRefreshFailedTokenLabels,
 	getRefreshFailureDetails,
+	getRequestEntryFormatLabel,
 	getVerificationFailedTokenIssues,
 	getSuggestedActionLabel,
 	getVerificationStageTone,
@@ -4163,6 +4164,18 @@ const App = () => {
 									{getSuggestedActionLabel(
 										siteVerificationDialog.result.suggested_action,
 									)}
+								</p>
+							</div>
+							<div>
+								<p class="text-xs uppercase tracking-widest text-[color:var(--app-ink-muted)]">
+									请求格式
+								</p>
+								<p class="mt-1 text-sm font-semibold text-[color:var(--app-ink)]">
+									{siteVerificationDialog.result.request_entry_format
+										? getRequestEntryFormatLabel(
+												siteVerificationDialog.result.request_entry_format,
+											)
+										: "-"}
 								</p>
 							</div>
 							<div>

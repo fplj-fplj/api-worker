@@ -23,6 +23,7 @@ import type {
 	UsageLog,
 	UsageQuery,
 } from "../core/types";
+import { getRequestEntryFormatLabel } from "../core/sites";
 import {
 	buildPageItems,
 	buildUsageStatusDetail,
@@ -71,6 +72,9 @@ const formatStream = (value: boolean | number | null | undefined) => {
 	}
 	return value ? "是" : "否";
 };
+
+const formatRequestEntryFormat = (value: UsageLog["request_entry_format"]) =>
+	value ? getRequestEntryFormatLabel(value) : "-";
 
 type ParsedErrorMeta = {
 	text: string | null;
@@ -192,6 +196,7 @@ export const UsageView = ({
 	const usageColumns = [
 		{ id: "time", label: "时间", locked: true },
 		{ id: "model", label: "模型" },
+		{ id: "request_format", label: "请求格式" },
 		{ id: "channel", label: "渠道" },
 		{ id: "token", label: "令牌" },
 		{ id: "uncached_input_tokens", label: "普通输入" },
@@ -208,7 +213,7 @@ export const UsageView = ({
 	];
 	const [visibleColumns, setVisibleColumns] = useState(() =>
 		loadColumnPrefs(
-			"columns:usage:v2",
+			"columns:usage:v3",
 			usageColumns.map((column) => column.id),
 		),
 	);
@@ -219,7 +224,7 @@ export const UsageView = ({
 	const visibleColumnCount = visibleColumns.length;
 	const updateVisibleColumns = (next: string[]) => {
 		setVisibleColumns(next);
-		persistColumnPrefs("columns:usage:v2", next);
+		persistColumnPrefs("columns:usage:v3", next);
 	};
 	const totalPages = useMemo(
 		() => Math.max(1, Math.ceil(total / pageSize)),
@@ -501,6 +506,11 @@ export const UsageView = ({
 											渠道
 										</th>
 									)}
+									{visibleColumnSet.has("request_format") && (
+										<th class="sticky top-0 bg-[color:var(--app-surface-strong)]/95">
+											请求格式
+										</th>
+									)}
 									{visibleColumnSet.has("token") && (
 										<th class="sticky top-0 bg-[color:var(--app-surface-strong)]/95">
 											令牌
@@ -627,6 +637,11 @@ export const UsageView = ({
 												{visibleColumnSet.has("channel") && (
 													<td class="px-3 py-2.5 text-left text-xs text-[color:var(--app-ink)] sm:text-sm">
 														{formatChannelLabel(log)}
+													</td>
+												)}
+												{visibleColumnSet.has("request_format") && (
+													<td class="px-3 py-2.5 text-left text-xs text-[color:var(--app-ink)] sm:text-sm">
+														{formatRequestEntryFormat(log.request_entry_format)}
 													</td>
 												)}
 												{visibleColumnSet.has("token") && (
@@ -805,6 +820,16 @@ export const UsageView = ({
 								<div class="flex items-center justify-between gap-3">
 									<span class="text-[color:var(--app-ink-muted)]">渠道</span>
 									<span>{formatChannelLabel(activeErrorLog)}</span>
+								</div>
+								<div class="flex items-center justify-between gap-3">
+									<span class="text-[color:var(--app-ink-muted)]">
+										请求格式
+									</span>
+									<span>
+										{formatRequestEntryFormat(
+											activeErrorLog.request_entry_format,
+										)}
+									</span>
 								</div>
 								<div class="flex items-center justify-between gap-3">
 									<span class="text-[color:var(--app-ink-muted)]">令牌</span>
