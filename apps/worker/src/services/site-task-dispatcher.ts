@@ -925,17 +925,6 @@ export async function refreshChannelById(
 	if (!channel) {
 		return null;
 	}
-	if (channel.status !== "active") {
-		return {
-			site_id: channel.id,
-			site_name: channel.name,
-			status: "failed",
-			message: "仅启用渠道可更新",
-			detail_message: null,
-			failure_groups: [],
-			models: [],
-		};
-	}
 	return refreshChannelModels(db, env, channel);
 }
 

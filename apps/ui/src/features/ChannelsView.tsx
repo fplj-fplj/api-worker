@@ -1488,12 +1488,7 @@ export const ChannelsView = ({
 							class="h-8 px-3 text-[11px]"
 							size="sm"
 							type="button"
-							disabled={refreshPending || activeModelSite.status !== "active"}
-							title={
-								activeModelSite.status === "active"
-									? undefined
-									: "仅启用渠道可更新"
-							}
+							disabled={refreshPending}
 							onClick={() => onRefreshSite(activeModelSite)}
 						>
 							{refreshPending ? "拉取中..." : "拉取模型"}
