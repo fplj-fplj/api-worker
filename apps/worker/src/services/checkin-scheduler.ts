@@ -148,207 +148,217 @@ export class CheckinScheduler {
 
 	private async handleAlarm(): Promise<void> {
 		const now = new Date();
-		const checkinScheduleTime = await getCheckinScheduleTime(this.env.DB);
-		const checkinLastRunDate =
-			(await this.state.storage.get<string>(LAST_RUN_DATE_KEY)) ?? null;
-		if (shouldRunCheckin(now, checkinScheduleTime, checkinLastRunDate)) {
-			const result = await runCheckinAllViaWorker(this.env.DB, this.env, now);
-			await saveSiteTaskReport(this.env.DB, {
-				kind: "checkin",
-				status: "completed",
-				runs_at: result.runsAt,
-				started_at: result.runsAt,
-				finished_at: result.runsAt,
-				progress: {
-					total: result.summary.total,
-					completed: result.summary.total,
-					success: result.summary.success,
-					warning: 0,
-					failed: result.summary.failed,
-					skipped: result.summary.skipped,
-					current_site_id: null,
-					current_site_name: null,
-					updated_at: result.runsAt,
-				},
-				error_message: null,
-				summary: result.summary,
-				items: result.results,
-			});
-			await this.state.storage.put(LAST_RUN_DATE_KEY, beijingDateString(now));
-		}
-		const channelRefreshEnabled = await getChannelRefreshEnabled(this.env.DB);
-		if (channelRefreshEnabled) {
-			const channelRefreshScheduleTime = await getChannelRefreshScheduleTime(
+		let pendingError: unknown = null;
+		try {
+			const checkinScheduleTime = await getCheckinScheduleTime(this.env.DB);
+			const checkinLastRunDate =
+				(await this.state.storage.get<string>(LAST_RUN_DATE_KEY)) ?? null;
+			if (shouldRunCheckin(now, checkinScheduleTime, checkinLastRunDate)) {
+				const result = await runCheckinAllViaWorker(this.env.DB, this.env, now);
+				await saveSiteTaskReport(this.env.DB, {
+					kind: "checkin",
+					status: "completed",
+					runs_at: result.runsAt,
+					started_at: result.runsAt,
+					finished_at: result.runsAt,
+					progress: {
+						total: result.summary.total,
+						completed: result.summary.total,
+						success: result.summary.success,
+						warning: 0,
+						failed: result.summary.failed,
+						skipped: result.summary.skipped,
+						current_site_id: null,
+						current_site_name: null,
+						updated_at: result.runsAt,
+					},
+					error_message: null,
+					summary: result.summary,
+					items: result.results,
+				});
+				await this.state.storage.put(LAST_RUN_DATE_KEY, beijingDateString(now));
+			}
+			const channelRefreshEnabled = await getChannelRefreshEnabled(this.env.DB);
+			if (channelRefreshEnabled) {
+				const channelRefreshScheduleTime = await getChannelRefreshScheduleTime(
+					this.env.DB,
+				);
+				const channelRefreshLastRunDate =
+					(await this.state.storage.get<string>(
+						CHANNEL_REFRESH_LAST_RUN_DATE_KEY,
+					)) ?? null;
+				if (
+					shouldRunCheckin(
+						now,
+						channelRefreshScheduleTime,
+						channelRefreshLastRunDate,
+					)
+				) {
+					const refreshResult = await refreshActiveChannelsViaWorker(
+						this.env.DB,
+						this.env,
+					);
+					const report = {
+						summary: refreshResult.summary,
+						items: refreshResult.items,
+						runs_at: refreshResult.runsAt,
+					};
+					await saveSiteTaskReport(this.env.DB, {
+						kind: "refresh-active",
+						status: "completed",
+						runs_at: report.runs_at,
+						started_at: report.runs_at,
+						finished_at: report.runs_at,
+						progress: {
+							total: report.summary.total,
+							completed: report.summary.total,
+							success: report.summary.success,
+							warning: report.summary.warning,
+							failed: report.summary.failed,
+							skipped: 0,
+							current_site_id: null,
+							current_site_name: null,
+							updated_at: report.runs_at,
+						},
+						error_message: null,
+						report,
+					});
+					if (refreshResult.summary.success > 0) {
+						await invalidateSelectionHotCache(this.env.KV_HOT);
+					}
+					await this.state.storage.put(
+						CHANNEL_REFRESH_LAST_RUN_DATE_KEY,
+						beijingDateString(now),
+					);
+				}
+			}
+			const channelRecoveryEnabled = await getChannelRecoveryProbeEnabled(
 				this.env.DB,
 			);
-			const channelRefreshLastRunDate =
-				(await this.state.storage.get<string>(
-					CHANNEL_REFRESH_LAST_RUN_DATE_KEY,
-				)) ?? null;
-			if (
-				shouldRunCheckin(
-					now,
-					channelRefreshScheduleTime,
-					channelRefreshLastRunDate,
-				)
-			) {
-				const refreshResult = await refreshActiveChannelsViaWorker(
-					this.env.DB,
-					this.env,
-				);
-				const report = {
-					summary: refreshResult.summary,
-					items: refreshResult.items,
-					runs_at: refreshResult.runsAt,
-				};
-				await saveSiteTaskReport(this.env.DB, {
-					kind: "refresh-active",
-					status: "completed",
-					runs_at: report.runs_at,
-					started_at: report.runs_at,
-					finished_at: report.runs_at,
-					progress: {
-						total: report.summary.total,
-						completed: report.summary.total,
-						success: report.summary.success,
-						warning: report.summary.warning,
-						failed: report.summary.failed,
-						skipped: 0,
-						current_site_id: null,
-						current_site_name: null,
-						updated_at: report.runs_at,
-					},
-					error_message: null,
-					report,
-				});
-				if (refreshResult.summary.success > 0) {
-					await invalidateSelectionHotCache(this.env.KV_HOT);
-				}
-				await this.state.storage.put(
-					CHANNEL_REFRESH_LAST_RUN_DATE_KEY,
-					beijingDateString(now),
-				);
-			}
-		}
-		const channelRecoveryEnabled = await getChannelRecoveryProbeEnabled(
-			this.env.DB,
-		);
-		if (channelRecoveryEnabled) {
-			const channelRecoveryScheduleTime =
-				await getChannelRecoveryProbeScheduleTime(this.env.DB);
-			const channelRecoveryLastRunDate =
-				(await this.state.storage.get<string>(
-					CHANNEL_RECOVERY_LAST_RUN_DATE_KEY,
-				)) ?? null;
-			if (
-				shouldRunCheckin(
-					now,
-					channelRecoveryScheduleTime,
-					channelRecoveryLastRunDate,
-				)
-			) {
-				const recoveryResult = await recoverDisabledChannelsViaWorker(
-					this.env.DB,
-					this.env,
-				);
-				const verificationItems = recoveryResult.items
-					.map((item) => item.verification)
-					.filter(
-						(
-							item,
-						): item is NonNullable<
-							(typeof recoveryResult.items)[number]["verification"]
-						> => Boolean(item),
+			if (channelRecoveryEnabled) {
+				const channelRecoveryScheduleTime =
+					await getChannelRecoveryProbeScheduleTime(this.env.DB);
+				const channelRecoveryLastRunDate =
+					(await this.state.storage.get<string>(
+						CHANNEL_RECOVERY_LAST_RUN_DATE_KEY,
+					)) ?? null;
+				if (
+					shouldRunCheckin(
+						now,
+						channelRecoveryScheduleTime,
+						channelRecoveryLastRunDate,
+					)
+				) {
+					const recoveryResult = await recoverDisabledChannelsViaWorker(
+						this.env.DB,
+						this.env,
 					);
-				const report = await buildVerificationBatchResult(verificationItems);
-				await saveSiteTaskReport(this.env.DB, {
-					kind: "verify-disabled",
-					status: "completed",
-					runs_at: report.runs_at,
-					started_at: report.runs_at,
-					finished_at: report.runs_at,
-					progress: {
-						total: report.summary.total,
-						completed: report.summary.total,
-						success: report.summary.recoverable,
-						warning: 0,
-						failed: report.summary.not_recoverable + report.summary.failed,
-						skipped: report.summary.skipped,
-						current_site_id: null,
-						current_site_name: null,
-						updated_at: report.runs_at,
-					},
-					error_message: null,
-					report,
-				});
-				if (recoveryResult.recovered > 0) {
-					await invalidateSelectionHotCache(this.env.KV_HOT);
-				}
-				await this.state.storage.put(
-					CHANNEL_RECOVERY_LAST_RUN_DATE_KEY,
-					beijingDateString(now),
-				);
-			}
-		}
-		const backupEnabled = await getBackupScheduleEnabled(this.env.DB);
-		if (backupEnabled) {
-			const backupScheduleTime = await getBackupScheduleTime(this.env.DB);
-			const backupLastRunDate =
-				(await this.state.storage.get<string>(BACKUP_LAST_RUN_DATE_KEY)) ??
-				null;
-			if (shouldRunCheckin(now, backupScheduleTime, backupLastRunDate)) {
-				try {
-					await executeBackupSync(this.env.DB, { reason: "schedule" });
-				} catch {
-					// Swallow scheduler backup failures to keep alarm loop alive.
-				} finally {
-					await this.state.storage.put(
-						BACKUP_LAST_RUN_DATE_KEY,
-						beijingDateString(now),
-					);
-				}
-			}
-		}
-		const pricingSettings = await getPricingSettings(this.env.DB);
-		if (pricingSettings.sync_enabled) {
-			const pricingSyncLastRunDate =
-				(await this.state.storage.get<string>(
-					PRICING_SYNC_LAST_RUN_DATE_KEY,
-				)) ?? null;
-			if (
-				shouldRunCheckin(
-					now,
-					pricingSettings.sync_schedule_time,
-					pricingSyncLastRunDate,
-				)
-			) {
-				try {
-					let usdCnyRate = pricingSettings.usd_cny_rate;
-					try {
-						usdCnyRate = await fetchUsdCnyRate();
-						await setPricingSettings(this.env.DB, { usd_cny_rate: usdCnyRate });
-					} catch {
-						usdCnyRate = pricingSettings.usd_cny_rate;
+					const verificationItems = recoveryResult.items
+						.map((item) => item.verification)
+						.filter(
+							(
+								item,
+							): item is NonNullable<
+								(typeof recoveryResult.items)[number]["verification"]
+							> => Boolean(item),
+						);
+					const report = await buildVerificationBatchResult(verificationItems);
+					await saveSiteTaskReport(this.env.DB, {
+						kind: "verify-disabled",
+						status: "completed",
+						runs_at: report.runs_at,
+						started_at: report.runs_at,
+						finished_at: report.runs_at,
+						progress: {
+							total: report.summary.total,
+							completed: report.summary.total,
+							success: report.summary.recoverable,
+							warning: 0,
+							failed: report.summary.not_recoverable + report.summary.failed,
+							skipped: report.summary.skipped,
+							current_site_id: null,
+							current_site_name: null,
+							updated_at: report.runs_at,
+						},
+						error_message: null,
+						report,
+					});
+					if (recoveryResult.recovered > 0) {
+						await invalidateSelectionHotCache(this.env.KV_HOT);
 					}
-					const pricingSyncResult = await syncModelPrices(this.env.DB, {
-						sources: pricingSettings.sync_sources,
-						targetCurrency: pricingSettings.currency,
-						usdCnyRate,
-					});
-					await setPricingSettings(this.env.DB, {
-						last_sync_result: pricingSyncResult,
-					});
-				} catch {
-					// Keep scheduler alive if a pricing page cannot be parsed.
-				} finally {
 					await this.state.storage.put(
-						PRICING_SYNC_LAST_RUN_DATE_KEY,
+						CHANNEL_RECOVERY_LAST_RUN_DATE_KEY,
 						beijingDateString(now),
 					);
 				}
 			}
+			const backupEnabled = await getBackupScheduleEnabled(this.env.DB);
+			if (backupEnabled) {
+				const backupScheduleTime = await getBackupScheduleTime(this.env.DB);
+				const backupLastRunDate =
+					(await this.state.storage.get<string>(BACKUP_LAST_RUN_DATE_KEY)) ??
+					null;
+				if (shouldRunCheckin(now, backupScheduleTime, backupLastRunDate)) {
+					try {
+						await executeBackupSync(this.env.DB, { reason: "schedule" });
+					} catch {
+						// Swallow scheduler backup failures to keep alarm loop alive.
+					} finally {
+						await this.state.storage.put(
+							BACKUP_LAST_RUN_DATE_KEY,
+							beijingDateString(now),
+						);
+					}
+				}
+			}
+			const pricingSettings = await getPricingSettings(this.env.DB);
+			if (pricingSettings.sync_enabled) {
+				const pricingSyncLastRunDate =
+					(await this.state.storage.get<string>(
+						PRICING_SYNC_LAST_RUN_DATE_KEY,
+					)) ?? null;
+				if (
+					shouldRunCheckin(
+						now,
+						pricingSettings.sync_schedule_time,
+						pricingSyncLastRunDate,
+					)
+				) {
+					try {
+						let usdCnyRate = pricingSettings.usd_cny_rate;
+						try {
+							usdCnyRate = await fetchUsdCnyRate();
+							await setPricingSettings(this.env.DB, {
+								usd_cny_rate: usdCnyRate,
+							});
+						} catch {
+							usdCnyRate = pricingSettings.usd_cny_rate;
+						}
+						const pricingSyncResult = await syncModelPrices(this.env.DB, {
+							sources: pricingSettings.sync_sources,
+							targetCurrency: pricingSettings.currency,
+							usdCnyRate,
+						});
+						await setPricingSettings(this.env.DB, {
+							last_sync_result: pricingSyncResult,
+						});
+					} catch {
+						// Keep scheduler alive if a pricing page cannot be parsed.
+					} finally {
+						await this.state.storage.put(
+							PRICING_SYNC_LAST_RUN_DATE_KEY,
+							beijingDateString(now),
+						);
+					}
+				}
+			}
+		} catch (error) {
+			pendingError = error;
 		}
 		await this.reschedule(now);
+		if (pendingError) {
+			throw pendingError;
+		}
 	}
 
 	private async reschedule(
