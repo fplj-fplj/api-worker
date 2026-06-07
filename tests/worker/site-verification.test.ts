@@ -72,6 +72,31 @@ afterEach(() => {
 });
 
 describe("site verification", () => {
+	it("模型发现结果会保留上游原始模型名，不会写成 canonical 名", async () => {
+		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input);
+			if (url.endsWith("/v1/models")) {
+				return Response.json({
+					data: [{ id: "google/gemma-4-31b-it" }],
+				});
+			}
+			return Response.json({
+				choices: [{ message: { content: "OK" } }],
+			});
+		});
+		globalThis.fetch = fetchMock as typeof fetch;
+		vi.spyOn(Math, "random").mockReturnValue(0);
+
+		const result = await verifySiteChannel({
+			channel: createOpenAiChannel(["google/gemma-4-31b-it"]),
+			tokens: [{ api_key: "sk-test", models_json: null }],
+		});
+
+		expect(result.verdict).toBe("serving");
+		expect(result.selected_model).toBe("google/gemma-4-31b-it");
+		expect(result.discovered_models).toEqual(["google/gemma-4-31b-it"]);
+	});
+
 	it("网络错误会按现有请求规则继续尝试后续请求格式", async () => {
 		const postCalls: Array<{ path: string; model: string }> = [];
 		const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
