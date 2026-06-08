@@ -127,18 +127,18 @@ describe("site verification", () => {
 		});
 
 		expect(result.verdict).toBe("serving");
-		expect(result.request_entry_format).toBe("openai_chat");
+		expect(result.request_entry_format).toBe("openai_responses");
 		expect(result.tried_models).toEqual(["gpt-4.1"]);
 		expect(result.tried_request_formats).toEqual([
-			"openai_responses",
 			"openai_chat",
+			"openai_responses",
 		]);
 		expect(result.attempts).toEqual([
 			{
 				model: "gpt-4.1",
 				request_model: "gpt-4.1",
-				request_entry_format: "openai_responses",
-				endpoint_type: "responses",
+				request_entry_format: "openai_chat",
+				endpoint_type: "chat",
 				provider: "openai",
 				status: "failed",
 				http_status: null,
@@ -149,8 +149,8 @@ describe("site verification", () => {
 			{
 				model: "gpt-4.1",
 				request_model: "gpt-4.1",
-				request_entry_format: "openai_chat",
-				endpoint_type: "chat",
+				request_entry_format: "openai_responses",
+				endpoint_type: "responses",
 				provider: "openai",
 				status: "success",
 				http_status: 200,
@@ -160,12 +160,12 @@ describe("site verification", () => {
 			},
 		]);
 		expect(postCalls).toEqual([
-			{ path: "/v1/responses", model: "gpt-4.1" },
 			{ path: "/v1/chat/completions", model: "gpt-4.1" },
+			{ path: "/v1/responses", model: "gpt-4.1" },
 		]);
 	});
 
-	it("自动模式优先命中 responses 时，会按 responses 端点标准化验证请求", async () => {
+	it("自动模式优先命中 chat 时，会按 chat 端点标准化验证请求", async () => {
 		const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 			const url = String(input);
 			if (url.endsWith("/v1/models")) {
@@ -186,14 +186,14 @@ describe("site verification", () => {
 		});
 
 		expect(result.verdict).toBe("serving");
-		expect(result.request_entry_format).toBe("openai_responses");
+		expect(result.request_entry_format).toBe("openai_chat");
 		expect(providerTransformMocks.normalizeChatRequestMock).toHaveBeenCalledWith(
 			"openai",
-			"responses",
+			"chat",
 			expect.objectContaining({
 				model: "gpt-4.1",
-				input: "Reply with OK.",
-				max_output_tokens: 8,
+				messages: [{ role: "user", content: "Reply with OK." }],
+				max_tokens: 8,
 			}),
 			"gpt-4.1",
 			false,
@@ -237,8 +237,8 @@ describe("site verification", () => {
 
 		expect(result.verdict).toBe("failed");
 		expect(postCalls).toEqual([
-			{ path: "/v1/responses", model: "gpt-4.1" },
 			{ path: "/v1/chat/completions", model: "gpt-4.1" },
+			{ path: "/v1/responses", model: "gpt-4.1" },
 		]);
 	});
 

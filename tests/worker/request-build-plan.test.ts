@@ -22,9 +22,9 @@ describe("attempt request build plan", () => {
 			customEntry: {
 				path: "/codex",
 				upstreamProvider: "openai",
-				requestEntryFormatToPersist: "openai_responses",
+				requestEntryFormatToPersist: "openai_chat",
 			},
-			requestEntryFormatToPersist: "openai_responses",
+			requestEntryFormatToPersist: "openai_chat",
 		});
 	});
 

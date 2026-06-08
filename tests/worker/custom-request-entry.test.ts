@@ -85,7 +85,7 @@ describe("custom request entry", () => {
 		});
 	});
 
-	it("OpenAI 自动格式默认会先按 responses 入口处理 chat 请求", () => {
+	it("OpenAI 自动格式默认会先按 chat 入口处理 chat 请求", () => {
 		const entry = applyCustomRequestEntry({
 			siteType: "openai",
 			entry: {
@@ -99,7 +99,7 @@ describe("custom request entry", () => {
 		expect(entry).toEqual({
 			path: "/codex",
 			upstreamProvider: "openai",
-			requestEntryFormatToPersist: "openai_responses",
+			requestEntryFormatToPersist: "openai_chat",
 		});
 	});
 

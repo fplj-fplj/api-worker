@@ -10,7 +10,7 @@
 - 请求入口包含两个字段：
   - `path`：相对路径或完整 URL，例如 `/codex`。
   - `format`：按站点类型展示的显式协议名，例如 `openai_chat`、`openai_responses`、`anthropic_messages`、`gemini_generate_content`；为空表示“自动”。
-- 当 `format` 为空时，系统按当前下游请求类型使用该入口；如果上游返回 HTTP 200，立即把 `format` 固化为本次成功的明确格式。
+- 当 `format` 为空时，系统优先按当前下游请求类型尝试该入口：Chat 请求先试 Chat，Responses 请求先试 Responses；失败后仍会继续尝试同站点支持的其他自动格式，且不会把站点配置固化为某个明确格式。
 - 当请求格式为 `openai_responses` 时，只有下游 `/v1/responses` 请求使用该入口；请求体保持 Responses 形状。
 - 当请求格式为 `openai_chat` 时，只有下游 `/v1/chat/completions` 请求使用该入口；请求体保持 Chat Completions 形状。
 - 当请求格式为 `anthropic_messages` 时，只有下游 Anthropic Messages 请求使用该入口。
@@ -42,7 +42,7 @@
 
 旧值 `chat` / `responses` 仍会兼容解析为 `openai_chat` / `openai_responses`。
 
-如果填写请求入口并保持“自动”，前端允许保存；成功请求会把格式切换为明确值。
+如果填写请求入口并保持“自动”，前端允许保存；成功请求不会把格式切换为明确值。
 
 ## 测试
 
@@ -50,5 +50,5 @@
 - metadata 能保存路径 + 自动格式。
 - `openai_responses` 入口将 `/v1/responses` 转发到自定义路径并保留 body。
 - `openai_responses` 入口会跳过 `/v1/chat/completions`。
-- 自动入口在 HTTP 200 后固化为明确请求格式。
+- 自动入口优先按当前下游请求类型尝试，且 HTTP 200 后仍保持自动格式。
 - 前端最小回归确认编辑弹窗能看到并保存请求入口字段。
