@@ -35,6 +35,7 @@ const ATTEMPT_STREAM_META_REASON_HEADER = "x-ha-attempt-stream-meta-reason";
 const ATTEMPT_STREAM_EVENTS_SEEN_HEADER = "x-ha-attempt-stream-events-seen";
 const ATTEMPT_STREAM_ERROR_CODE_HEADER = "x-ha-attempt-stream-error-code";
 const ATTEMPT_STREAM_ERROR_MESSAGE_HEADER = "x-ha-attempt-stream-error-message";
+const ATTEMPT_STREAM_ERROR_META_HEADER = "x-ha-attempt-stream-error-meta";
 const ATTEMPT_RESPONSE_ID_HEADER = "x-ha-attempt-response-id";
 const DISPATCH_ATTEMPT_INDEX_HEADER = "x-ha-dispatch-attempt-index";
 const DISPATCH_CHANNEL_ID_HEADER = "x-ha-dispatch-channel-id";
@@ -585,6 +586,10 @@ async function collectAttemptStreamMeta(
 					parsedStreamUsage.abnormal.errorCode;
 				meta[ATTEMPT_STREAM_ERROR_MESSAGE_HEADER] =
 					parsedStreamUsage.abnormal.errorMessage;
+				if (parsedStreamUsage.abnormal.errorMetaJson) {
+					meta[ATTEMPT_STREAM_ERROR_META_HEADER] =
+						parsedStreamUsage.abnormal.errorMetaJson;
+				}
 			}
 			streamMetaPartial = shouldMarkStreamMetaPartial({
 				mode,

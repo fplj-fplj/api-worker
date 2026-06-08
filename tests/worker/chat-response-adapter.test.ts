@@ -62,6 +62,10 @@ const { adaptChatResponse } = await import(
 	"../../apps/worker/src/services/chat-response-adapter"
 );
 
+async function readResponseText(response: Response): Promise<string> {
+	return await response.text();
+}
+
 describe("chat response adapter", () => {
 	it("OpenAI chat 转 OpenAI responses 时不会把 reasoning 混进 output_text", async () => {
 		const response = Response.json({
@@ -190,5 +194,88 @@ describe("chat response adapter", () => {
 		const message = choices[0]?.message as Record<string, unknown>;
 
 		expect(message.content).toBe("最终答案");
+	});
+
+	it("OpenAI chat 流转 OpenAI responses 时保留工具调用事件", async () => {
+		const upstream = [
+			{
+				choices: [
+					{
+						delta: { role: "assistant" },
+						finish_reason: null,
+					},
+				],
+			},
+			{
+				choices: [
+					{
+						delta: {
+							tool_calls: [
+								{
+									index: 0,
+									id: "call_1",
+									type: "function",
+									function: {
+										name: "read_file",
+										arguments: "{\"path\"",
+									},
+								},
+							],
+						},
+						finish_reason: null,
+					},
+				],
+			},
+			{
+				choices: [
+					{
+						delta: {
+							tool_calls: [
+								{
+									index: 0,
+									function: {
+										arguments: ":\"AGENTS.md\"}",
+									},
+								},
+							],
+						},
+						finish_reason: null,
+					},
+				],
+			},
+			{
+				choices: [
+					{
+						delta: {},
+						finish_reason: "tool_calls",
+					},
+				],
+			},
+		]
+			.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+			.join("");
+		const response = new Response(upstream, {
+			headers: { "content-type": "text/event-stream" },
+		});
+
+		const adapted = await adaptChatResponse({
+			response,
+			upstreamProvider: "openai",
+			downstreamProvider: "openai",
+			upstreamEndpoint: "chat",
+			downstreamEndpoint: "responses",
+			model: "gpt-5",
+			isStream: true,
+		});
+		const text = await readResponseText(adapted);
+
+		expect(text).toContain('"type":"response.output_item.added"');
+		expect(text).toContain('"type":"function_call"');
+		expect(text).toContain('"name":"read_file"');
+		expect(text).toContain('"call_id":"call_1"');
+		expect(text).toContain('"type":"response.function_call_arguments.delta"');
+		expect(text).toContain('"{\\"path\\""');
+		expect(text).toContain('":\\"AGENTS.md\\"}"');
+		expect(text).toContain('"type":"response.completed"');
 	});
 });

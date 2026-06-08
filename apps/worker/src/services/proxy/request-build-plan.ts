@@ -80,7 +80,10 @@ export function resolveAttemptRequestBuildPlan(options: {
 			requestEndpointType,
 			strategy: "rebuild_chat",
 			customEntry,
-			requestEntryFormatToPersist: customEntry?.requestEntryFormatToPersist,
+			requestEntryFormatToPersist:
+				customEntry?.requestEntryFormatToPersist ??
+				options.requestEntryFormatOverride ??
+				undefined,
 		};
 	}
 

@@ -27,10 +27,14 @@ describe("custom request entry", () => {
 			endpointType: "responses",
 		});
 
-		expect(entry).toEqual({ path: "/codex", upstreamProvider: "openai" });
+		expect(entry).toEqual({
+			path: "/codex",
+			upstreamProvider: "openai",
+			requestEntryFormatToPersist: "openai_responses",
+		});
 	});
 
-	it("自动入口会按当前 responses 请求解析为 openai_responses，但不再持久化格式", () => {
+	it("自动入口会按当前 responses 请求解析并持久化 openai_responses", () => {
 		const entry = applyCustomRequestEntry({
 			siteType: "openai",
 			entry: {
@@ -44,6 +48,7 @@ describe("custom request entry", () => {
 		expect(entry).toEqual({
 			path: "/codex",
 			upstreamProvider: "openai",
+			requestEntryFormatToPersist: "openai_responses",
 		});
 	});
 
@@ -76,6 +81,7 @@ describe("custom request entry", () => {
 		expect(entry).toEqual({
 			path: "/codex",
 			upstreamProvider: "openai",
+			requestEntryFormatToPersist: "openai_responses",
 		});
 	});
 
@@ -93,6 +99,7 @@ describe("custom request entry", () => {
 		expect(entry).toEqual({
 			path: "/codex",
 			upstreamProvider: "openai",
+			requestEntryFormatToPersist: "openai_responses",
 		});
 	});
 
@@ -110,6 +117,7 @@ describe("custom request entry", () => {
 		expect(entry).toEqual({
 			absoluteUrl: "https://example.com/codex",
 			upstreamProvider: "openai",
+			requestEntryFormatToPersist: "openai_responses",
 		});
 	});
 
@@ -127,6 +135,7 @@ describe("custom request entry", () => {
 		expect(entry).toEqual({
 			path: "/v1/messages",
 			upstreamProvider: "anthropic",
+			requestEntryFormatToPersist: "anthropic_messages",
 		});
 	});
 
@@ -158,6 +167,7 @@ describe("custom request entry", () => {
 		expect(entry).toEqual({
 			path: "/v1beta/models/{model}:generateContent",
 			upstreamProvider: "gemini",
+			requestEntryFormatToPersist: "gemini_generate_content",
 		});
 	});
 
@@ -175,6 +185,7 @@ describe("custom request entry", () => {
 		).toEqual({
 			path: "/v1/responses",
 			upstreamProvider: "openai",
+			requestEntryFormatToPersist: "openai_responses",
 		});
 	});
 });

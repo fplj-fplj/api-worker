@@ -230,6 +230,15 @@ type OpenAiStreamToolCallDelta = {
 	argumentsChunk: string;
 };
 
+type OpenAiResponsesToolCallState = {
+	outputIndex: number;
+	itemId: string;
+	callId: string;
+	name: string | null;
+	argumentsText: string;
+	started: boolean;
+};
+
 function extractOpenAiToolCallDeltas(
 	payload: Record<string, unknown>,
 ): OpenAiStreamToolCallDelta[] {
@@ -341,6 +350,69 @@ function writeGeminiChunk(
 	data: Record<string, unknown>,
 ): void {
 	controller.enqueue(encoder.encode(`${JSON.stringify(data)}\n`));
+}
+
+function ensureOpenAiResponsesToolCallStarted(
+	controller: ReadableStreamDefaultController<Uint8Array>,
+	encoder: TextEncoder,
+	state: OpenAiResponsesToolCallState,
+): void {
+	if (state.started || !state.name) {
+		return;
+	}
+	state.started = true;
+	writeOpenAiResponsesChunk(controller, encoder, {
+		type: "response.output_item.added",
+		output_index: state.outputIndex,
+		item: {
+			id: state.itemId,
+			type: "function_call",
+			call_id: state.callId,
+			name: state.name,
+			arguments: "",
+		},
+	});
+}
+
+function closeOpenAiResponsesToolCalls(
+	controller: ReadableStreamDefaultController<Uint8Array>,
+	encoder: TextEncoder,
+	toolCallState: Map<number, OpenAiResponsesToolCallState>,
+): Array<Record<string, unknown>> {
+	const output: Array<Record<string, unknown>> = [];
+	for (const [, state] of [...toolCallState.entries()].sort(
+		([left], [right]) => left - right,
+	)) {
+		ensureOpenAiResponsesToolCallStarted(controller, encoder, state);
+		if (!state.started) {
+			continue;
+		}
+		writeOpenAiResponsesChunk(controller, encoder, {
+			type: "response.function_call_arguments.done",
+			item_id: state.itemId,
+			output_index: state.outputIndex,
+			arguments: state.argumentsText,
+		});
+		writeOpenAiResponsesChunk(controller, encoder, {
+			type: "response.output_item.done",
+			output_index: state.outputIndex,
+			item: {
+				id: state.itemId,
+				type: "function_call",
+				call_id: state.callId,
+				name: state.name ?? "",
+				arguments: state.argumentsText,
+			},
+		});
+		output.push({
+			id: state.itemId,
+			type: "function_call",
+			call_id: state.callId,
+			name: state.name ?? "",
+			arguments: state.argumentsText,
+		});
+	}
+	return output;
 }
 
 async function adaptOpenAiResponsesJsonToChat(
@@ -533,6 +605,79 @@ function adaptOpenAiChatSseToResponses(options: AdaptOptions): Response {
 	let buffer = "";
 	let text = "";
 	let completed = false;
+	let textOutputStarted = false;
+	const toolCallState = new Map<number, OpenAiResponsesToolCallState>();
+
+	const ensureTextOutputStarted = (
+		controller: ReadableStreamDefaultController<Uint8Array>,
+	) => {
+		if (textOutputStarted) {
+			return;
+		}
+		textOutputStarted = true;
+		writeOpenAiResponsesChunk(controller, encoder, {
+			type: "response.output_item.added",
+			output_index: 0,
+			item: {
+				id: `${responseId}_msg`,
+				type: "message",
+				role: "assistant",
+				content: [],
+			},
+		});
+		writeOpenAiResponsesChunk(controller, encoder, {
+			type: "response.content_part.added",
+			item_id: `${responseId}_msg`,
+			output_index: 0,
+			content_index: 0,
+			part: { type: "output_text", text: "" },
+		});
+	};
+
+	const buildCompletedResponse = (
+		controller: ReadableStreamDefaultController<Uint8Array>,
+	): Record<string, unknown> => {
+		const output: Array<Record<string, unknown>> = [];
+		if (textOutputStarted || text) {
+			if (textOutputStarted) {
+				writeOpenAiResponsesChunk(controller, encoder, {
+					type: "response.content_part.done",
+					item_id: `${responseId}_msg`,
+					output_index: 0,
+					content_index: 0,
+					part: { type: "output_text", text },
+				});
+				writeOpenAiResponsesChunk(controller, encoder, {
+					type: "response.output_item.done",
+					output_index: 0,
+					item: {
+						id: `${responseId}_msg`,
+						type: "message",
+						role: "assistant",
+						content: [{ type: "output_text", text }],
+					},
+				});
+			}
+			output.push({
+				type: "message",
+				role: "assistant",
+				content: [{ type: "output_text", text }],
+			});
+		}
+		output.push(
+			...closeOpenAiResponsesToolCalls(controller, encoder, toolCallState),
+		);
+		return {
+			id: responseId,
+			object: "response",
+			model: options.model ?? "",
+			output:
+				output.length > 0
+					? output
+					: toOpenAiResponsesFromText(text, options.model).output,
+			output_text: text,
+		};
+	};
 
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
@@ -571,17 +716,52 @@ function adaptOpenAiChatSseToResponses(options: AdaptOptions): Response {
 								: {};
 						const content = openAiContentToText(delta.content);
 						if (content) {
+							ensureTextOutputStarted(controller);
 							text += content;
 							writeOpenAiResponsesChunk(controller, encoder, {
 								type: "response.output_text.delta",
 								delta: content,
 							});
 						}
+						for (const toolCallDelta of extractOpenAiToolCallDeltas(parsed)) {
+							const outputIndex =
+								(textOutputStarted || text ? 1 : 0) + toolCallDelta.index;
+							const state = toolCallState.get(toolCallDelta.index) ?? {
+								outputIndex,
+								itemId: toolCallDelta.id
+									? `fc_${toolCallDelta.id}`
+									: `${responseId}_fc_${toolCallDelta.index}`,
+								callId:
+									toolCallDelta.id ??
+									`${responseId}_call_${toolCallDelta.index}`,
+								name: null,
+								argumentsText: "",
+								started: false,
+							};
+							if (toolCallDelta.id) {
+								state.callId = toolCallDelta.id;
+								state.itemId = `fc_${toolCallDelta.id}`;
+							}
+							if (toolCallDelta.name) {
+								state.name = toolCallDelta.name;
+							}
+							ensureOpenAiResponsesToolCallStarted(controller, encoder, state);
+							if (toolCallDelta.argumentsChunk) {
+								state.argumentsText += toolCallDelta.argumentsChunk;
+								writeOpenAiResponsesChunk(controller, encoder, {
+									type: "response.function_call_arguments.delta",
+									item_id: state.itemId,
+									output_index: state.outputIndex,
+									delta: toolCallDelta.argumentsChunk,
+								});
+							}
+							toolCallState.set(toolCallDelta.index, state);
+						}
 						if (firstChoice.finish_reason && !completed) {
 							completed = true;
 							writeOpenAiResponsesChunk(controller, encoder, {
 								type: "response.completed",
-								response: toOpenAiResponsesFromText(text, options.model),
+								response: buildCompletedResponse(controller),
 							});
 						}
 						newlineIndex = buffer.indexOf("\n");
@@ -590,7 +770,7 @@ function adaptOpenAiChatSseToResponses(options: AdaptOptions): Response {
 				if (!completed) {
 					writeOpenAiResponsesChunk(controller, encoder, {
 						type: "response.completed",
-						response: toOpenAiResponsesFromText(text, options.model),
+						response: buildCompletedResponse(controller),
 					});
 				}
 				controller.enqueue(encoder.encode("data: [DONE]\n\n"));

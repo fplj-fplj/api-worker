@@ -32,6 +32,8 @@ export const ATTEMPT_STREAM_ERROR_CODE_HEADER =
 	"x-ha-attempt-stream-error-code";
 export const ATTEMPT_STREAM_ERROR_MESSAGE_HEADER =
 	"x-ha-attempt-stream-error-message";
+export const ATTEMPT_STREAM_ERROR_META_HEADER =
+	"x-ha-attempt-stream-error-meta";
 export const ATTEMPT_RESPONSE_ID_HEADER = "x-ha-attempt-response-id";
 export const ATTEMPT_DISPATCH_INDEX_HEADER = "x-ha-dispatch-attempt-index";
 export const ATTEMPT_DISPATCH_CHANNEL_ID_HEADER = "x-ha-dispatch-channel-id";
@@ -244,7 +246,8 @@ export function readAttemptStreamAbnormal(
 		errorMessage:
 			normalizeMessage(headers.get(ATTEMPT_STREAM_ERROR_MESSAGE_HEADER)) ??
 			errorCode,
-		errorMetaJson: null,
+		errorMetaJson:
+			normalizeMessage(headers.get(ATTEMPT_STREAM_ERROR_META_HEADER)) ?? null,
 		eventType: null,
 	};
 }

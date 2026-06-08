@@ -71,10 +71,12 @@ export function applyCustomRequestEntry(options: {
 		return {
 			absoluteUrl: resolvedPath,
 			upstreamProvider,
+			requestEntryFormatToPersist: effectiveFormat,
 		};
 	}
 	return {
 		path: resolvedPath,
 		upstreamProvider,
+		requestEntryFormatToPersist: effectiveFormat,
 	};
 }

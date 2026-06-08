@@ -22,7 +22,9 @@ describe("attempt request build plan", () => {
 			customEntry: {
 				path: "/codex",
 				upstreamProvider: "openai",
+				requestEntryFormatToPersist: "openai_responses",
 			},
+			requestEntryFormatToPersist: "openai_responses",
 		});
 	});
 
@@ -43,6 +45,7 @@ describe("attempt request build plan", () => {
 			upstreamProvider: "openai",
 			requestEndpointType: "responses",
 			strategy: "rebuild_chat",
+			requestEntryFormatToPersist: "openai_responses",
 		});
 	});
 
