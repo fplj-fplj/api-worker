@@ -32,7 +32,7 @@ import {
 	recordChannelDisableHit,
 } from "../../../worker/src/services/channel-model-capabilities";
 import { listActiveChannels } from "../../../worker/src/services/channel-repo";
-import { type ChannelRecord } from "../../../worker/src/services/channels";
+import type { ChannelRecord } from "../../../worker/src/services/channels";
 import {
 	buildChannelAttemptPlan,
 	selectCandidateChannels,
@@ -231,7 +231,7 @@ const RESPONSE_ADAPT_FAILED_CODE = "response_adapt_failed";
 const STREAM_META_PARTIAL_CODE = "stream_meta_partial";
 const NO_ROUTABLE_CHANNELS_ERROR_CODE = "no_routable_channels";
 
-let activeStreamUsageParsers = 0;
+const activeStreamUsageParsers = 0;
 
 proxy.onError((error, c) => {
 	const traceId = crypto.randomUUID();
@@ -1433,7 +1433,7 @@ proxy.all("/*", tokenAuth, async (c) => {
 				return false;
 			}
 		}
-		return !Boolean(downstreamSignal?.aborted);
+		return !downstreamSignal?.aborted;
 	};
 	const buildDirectErrorResponse = (
 		status: number | null,

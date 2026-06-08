@@ -1027,7 +1027,6 @@ export async function verifySiteChannel(options: {
 						stopVerification = true;
 						break;
 					}
-					continue;
 				}
 			}
 			if (service.status === "pass" || stopVerification) {
